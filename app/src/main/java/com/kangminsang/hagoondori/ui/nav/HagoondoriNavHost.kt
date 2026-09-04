@@ -38,7 +38,17 @@ fun HagoondoriNavHost() {
             startDestination = HagoondoriDestination.Dashboard.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(HagoondoriDestination.Dashboard.route) { DashboardScreen() }
+            composable(HagoondoriDestination.Dashboard.route) {
+                DashboardScreen(
+                    onNavigateToSync = {
+                        navController.navigate(HagoondoriDestination.Settings.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
             composable(HagoondoriDestination.Calendar.route) { CalendarScreen() }
             composable(HagoondoriDestination.Leave.route) { LeaveManagementScreen() }
             composable(HagoondoriDestination.Duty.route) { DutyBulkInputScreen() }

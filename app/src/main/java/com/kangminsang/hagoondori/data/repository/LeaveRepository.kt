@@ -3,6 +3,7 @@ package com.kangminsang.hagoondori.data.repository
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import com.kangminsang.hagoondori.data.local.dao.LeaveDao
 import com.kangminsang.hagoondori.data.mapper.toCore
 import com.kangminsang.hagoondori.data.mapper.toEntity
@@ -26,6 +27,14 @@ class LeaveRepository @Inject constructor(
     fun observeTypes(): Flow<List<LeaveType>> =
         dao.observeTypes().map { list -> list.map { it.toCore() } }
 
+    suspend fun addType(name: String, cap: Int?, overflowBehavior: OverflowBehavior): LeaveType {
+        val type = LeaveType(IdGenerator.newId(), name, cap, overflowBehavior)
+        dao.upsertType(type.toEntity())
+        syncStateRepository.markChanged()
+        return type
+    }
+
+    /** 기존 종류 수정(이름/상한/초과처리 변경)에 쓴다 - id가 이미 정해져 있는 경우. */
     suspend fun upsertType(type: LeaveType) {
         dao.upsertType(type.toEntity())
         syncStateRepository.markChanged()
