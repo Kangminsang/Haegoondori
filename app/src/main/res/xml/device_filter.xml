@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    USB 장치 연결 시 시스템이 이 앱을 자동 실행 후보로 띄우기 위한 필터
+    (AndroidManifest.xml의 USB_DEVICE_ATTACHED 인텐트 필터가 참조한다).
+
+    자작 e-ink 캘린더 장치(Waveshare RP2040-Plus 기반)의 실제 USB
+    vendor-id/product-id는 하드웨어가 완성되고 실제로 컴퓨터에 연결해
+    `lsusb`(또는 Android의 UsbManager.deviceList)로 확인한 뒤 채운다.
+    지금은 필터가 비어 있어도 앱 자체의 다른 동작(수동으로 "지금 동기화" 버튼을
+    눌러 SAF로 내보내는 것)에는 영향이 없다 - 이 필터는 "USB 연결 시 자동으로
+    앱이 뜨는" 편의 기능일 뿐이다.
+
+    예시(실제 값 확인 후 주석 해제하고 값을 채울 것):
+    <usb-device vendor-id="11914" product-id="10" />
+-->
+<resources>
+</resources>

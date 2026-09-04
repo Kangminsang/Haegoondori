@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 공휴일 조회(한국천문연구원 특일 정보 API) 용. 그 외 서버/계정 없음(원칙 B). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        장치를 USB 대용량 저장장치(MSC)로 인식시키고 SAF로 접근한다(8.3절).
+        USB_PERMISSION은 SAF(ACTION_OPEN_DOCUMENT_TREE) 경로에서는 필요하지 않지만,
+        장치 연결 여부를 감지하는 데는 UsbManager 접근이 필요할 수 있다.
+    -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
+    <application
+        android:name=".HagoondoriApp"
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Hagoondori"
+        android:supportsRtl="false"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Hagoondori"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+                장치가 USB MSC로 인식되면(F17, 8.3절) 시스템이 이 액티비티를 자동으로
+                띄워줄 수 있게 하는 필터. 실제 vendor/product ID는 장치 하드웨어가
+                확정된 뒤 device_filter.xml을 채운다(RealExportAdapter 구현 단계).
+            -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
+        </activity>
+    </application>
+</manifest>
