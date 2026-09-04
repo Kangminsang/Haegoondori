@@ -1,0 +1,32 @@
+### 로컬 전용 / 비밀 값 ###
+local.properties
+
+### Gradle ###
+.gradle/
+build/
+*/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### Android ###
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+.externalNativeBuild/
+.cxx/
+
+### Android Studio / IntelliJ ###
+.idea/
+*.iml
+*.ipr
+*.iws
+.navigation/
+/captures
+.DS_Store
+
+### Kotlin ###
+*.hprof
+
+### 장치 미리보기/동기화 개발용 산출물 ###
+calendar_preview/
