@@ -20,6 +20,7 @@ navigation-compose = "2.8.5"
 lifecycle = "2.8.7"
 activity-compose = "1.9.3"
 core-ktx = "1.15.0"
+documentfile = "1.0.1"
 hilt-navigation-compose = "1.2.0"
 junit-jupiter = "5.11.4"
 
@@ -41,6 +42,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 
 # --- app 모듈 (Android, google() 저장소 필요) ---
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
+androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
