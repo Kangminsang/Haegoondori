@@ -1,0 +1,74 @@
+package com.kangminsang.hagoondori.data.repository
+
+import com.kangminsang.hagoondori.core.model.LeaveGrant
+import com.kangminsang.hagoondori.core.model.LeaveType
+import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.data.local.dao.LeaveDao
+import com.kangminsang.hagoondori.data.mapper.toCore
+import com.kangminsang.hagoondori.data.mapper.toEntity
+import com.kangminsang.hagoondori.data.util.IdGenerator
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.datetime.LocalDate
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * 소모형 자원(휴가) 데이터 접근(스펙 4.4~4.6절, F7/F8). 계산(상한/잔여 등)은 하지
+ * 않는다 - 그건 [com.kangminsang.hagoondori.core.calc.LeaveCalculator]의 몫이며,
+ * 이 Repository가 노출하는 원본 Flow를 ViewModel이 그 계산기에 넘긴다.
+ */
+@Singleton
+class LeaveRepository @Inject constructor(
+    private val dao: LeaveDao,
+    private val syncStateRepository: SyncStateRepository,
+) {
+    fun observeTypes(): Flow<List<LeaveType>> =
+        dao.observeTypes().map { list -> list.map { it.toCore() } }
+
+    suspend fun upsertType(type: LeaveType) {
+        dao.upsertType(type.toEntity())
+        syncStateRepository.markChanged()
+    }
+
+    suspend fun deleteType(type: LeaveType) {
+        dao.deleteType(type.toEntity())
+        syncStateRepository.markChanged()
+    }
+
+    fun observeAllGrants(): Flow<List<LeaveGrant>> =
+        dao.observeAllGrants().map { list -> list.map { it.toCore() } }
+
+    fun observeGrants(leaveTypeId: String): Flow<List<LeaveGrant>> =
+        dao.observeGrants(leaveTypeId).map { list -> list.map { it.toCore() } }
+
+    suspend fun addGrant(leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?): LeaveGrant {
+        val grant = LeaveGrant(IdGenerator.newId(), leaveTypeId, days, grantedDate, reason)
+        dao.upsertGrant(grant.toEntity())
+        syncStateRepository.markChanged()
+        return grant
+    }
+
+    suspend fun deleteGrant(grant: LeaveGrant) {
+        dao.deleteGrant(grant.toEntity())
+        syncStateRepository.markChanged()
+    }
+
+    fun observeAllUsages(): Flow<List<LeaveUsage>> =
+        dao.observeAllUsages().map { list -> list.map { it.toCore() } }
+
+    fun observeUsages(leaveTypeId: String): Flow<List<LeaveUsage>> =
+        dao.observeUsages(leaveTypeId).map { list -> list.map { it.toCore() } }
+
+    suspend fun addUsage(leaveTypeId: String, startDate: LocalDate, endDate: LocalDate, label: String?): LeaveUsage {
+        val usage = LeaveUsage(IdGenerator.newId(), leaveTypeId, startDate, endDate, label)
+        dao.upsertUsage(usage.toEntity())
+        syncStateRepository.markChanged()
+        return usage
+    }
+
+    suspend fun deleteUsage(usage: LeaveUsage) {
+        dao.deleteUsage(usage.toEntity())
+        syncStateRepository.markChanged()
+    }
+}

@@ -72,6 +72,12 @@ android {
     }
 }
 
+ksp {
+    // HagoondoriDatabase(exportSchema = true)가 요구하는 스키마 히스토리 출력 위치.
+    // 향후 마이그레이션을 작성/검증할 때 이 폴더의 버전별 스키마 JSON을 참고한다.
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(project(":core"))
 
