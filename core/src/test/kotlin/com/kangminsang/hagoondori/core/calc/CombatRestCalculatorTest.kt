@@ -62,4 +62,47 @@ class CombatRestCalculatorTest {
         assertEquals(1, summary.totalUsed)
         assertEquals(4, summary.remaining)
     }
+
+    @Test
+    fun `summarizeAcrossLeaveTypes finds the converting type by overflowBehavior, not by name`() {
+        val leaveTypes = listOf(
+            LeaveType("annual", "연가", cap = null, overflowBehavior = OverflowBehavior.NONE),
+            reward, // CONVERT_TO_COMBAT_REST
+            rejectReward, // REJECT - 기여하지 않아야 함
+        )
+        val leaveGrants = listOf(
+            LeaveGrant("g0", "annual", 5, LocalDate(2026, 1, 1)),
+            LeaveGrant("g1", "reward", 19, LocalDate(2026, 1, 1)), // 2일 초과
+            LeaveGrant("g2", "reward2", 20, LocalDate(2026, 1, 1)), // REJECT라 기여 안 함
+        )
+        val restGrants = listOf(CombatRestGrant("c1", 3, LocalDate(2026, 2, 1)))
+
+        val summary = CombatRestCalculator.summarizeAcrossLeaveTypes(leaveTypes, leaveGrants, restGrants, emptyList())
+        assertEquals(2, summary.convertedFromLeave)
+        assertEquals(3, summary.directGranted)
+        assertEquals(5, summary.totalGranted)
+    }
+
+    @Test
+    fun `summarizeAcrossLeaveTypes sums multiple converting types if more than one exists`() {
+        val secondReward = LeaveType("reward3", "특별포상", cap = 5, overflowBehavior = OverflowBehavior.CONVERT_TO_COMBAT_REST)
+        val leaveTypes = listOf(reward, secondReward)
+        val leaveGrants = listOf(
+            LeaveGrant("g1", "reward", 19, LocalDate(2026, 1, 1)), // 2일 초과
+            LeaveGrant("g2", "reward3", 8, LocalDate(2026, 1, 1)), // 3일 초과
+        )
+
+        val summary = CombatRestCalculator.summarizeAcrossLeaveTypes(leaveTypes, leaveGrants, emptyList(), emptyList())
+        assertEquals(5, summary.convertedFromLeave)
+    }
+
+    @Test
+    fun `summarizeAcrossLeaveTypes with no converting type yields only direct grants`() {
+        val leaveTypes = listOf(LeaveType("annual", "연가", cap = null, overflowBehavior = OverflowBehavior.NONE))
+        val restGrants = listOf(CombatRestGrant("c1", 4, LocalDate(2026, 2, 1)))
+
+        val summary = CombatRestCalculator.summarizeAcrossLeaveTypes(leaveTypes, emptyList(), restGrants, emptyList())
+        assertEquals(0, summary.convertedFromLeave)
+        assertEquals(4, summary.totalGranted)
+    }
 }

@@ -54,4 +54,27 @@ object CombatRestCalculator {
         directGranted = restGrants.sumOf { it.days },
         totalUsed = totalUsed(restUsages),
     )
+
+    /**
+     * [summarize]의 다중 휴가종류 버전. 휴가 종류는 사용자가 F1/F7에서 자유롭게
+     * 정의하므로("포상휴가"라는 이름이 고정되어 있지 않으므로), 어떤 것이 전투휴무로
+     * 전환되는 종류인지는 이름이 아니라 [LeaveType.overflowBehavior]로 판별한다.
+     * 그런 종류가 여러 개여도(드물지만 가능) 전환분을 전부 합산한다. 하나도 없으면
+     * 전환분은 0이고, 직접 부여분만 남는다.
+     */
+    fun summarizeAcrossLeaveTypes(
+        leaveTypes: List<LeaveType>,
+        leaveGrants: List<LeaveGrant>,
+        restGrants: List<CombatRestGrant>,
+        restUsages: List<CombatRestUsage>,
+    ): CombatRestSummary {
+        val converted = leaveTypes
+            .filter { it.overflowBehavior == OverflowBehavior.CONVERT_TO_COMBAT_REST }
+            .sumOf { convertedFromLeaveOverflow(it, leaveGrants) }
+        return CombatRestSummary(
+            convertedFromLeave = converted,
+            directGranted = restGrants.sumOf { it.days },
+            totalUsed = totalUsed(restUsages),
+        )
+    }
 }
