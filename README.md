@@ -22,10 +22,17 @@ Hagoondori/
 이렇게 나눈 이유는 순전히 실용적이다: 출타 규정 계산(6주 외박 차수 매칭 등)과
 장치 전송 포맷은 이 앱에서 가장 정교하고 실수하면 안 되는 부분인데, 그 로직이
 Android에 전혀 의존하지 않으므로 `core`에 두면 에뮬레이터나 실기기 없이도
-`./gradlew :core:test` 한 줄로 실제 컴파일·테스트가 가능하다. 이 프로젝트를 만든
-개발 환경은 Android SDK를 설치할 수 없는 네트워크 정책 하에 있었기 때문에, `app`
-모듈은 실제로 빌드해 본 적이 없다 - **로컬 Android Studio에서 반드시 첫 빌드를
-확인해야 한다.**
+`./gradlew :core:test` 한 줄로 실제 컴파일·테스트가 가능하다. `app` 모듈은 처음
+여러 커밋에 걸쳐 Android SDK를 설치할 수 없는 네트워크 정책 하의 개발 환경에서
+작성되어 한 번도 빌드해 본 적이 없었으나, 이후 Android SDK(cmdline-tools,
+platform-tools, `platforms;android-35`, `build-tools;35.0.0`)를 받아 `./gradlew
+:app:assembleDebug`로 첫 빌드를 실제로 통과시켰다 - 이 과정에서 발견된 실제
+컴파일 오류 2건(`app/src/main/res/values/themes.xml`의 존재하지 않는 플랫폼
+테마 `Theme.DeviceDefault.DayNight.NoActionBar` 참조, `SyncStatusBanner.kt`의
+`androidx.compose.foundation.layout.weight` 불필요한 import가 Compose 내부
+프로퍼티와 이름이 충돌하던 문제)를 수정했다. 다만 이는 컴파일 성공을 의미할
+뿐, 실기기/에뮬레이터에서 화면이 의도대로 동작하는지는 여전히 확인되지 않았다 -
+**Android Studio에서 에뮬레이터나 실기기로 실행해 UI 동작을 확인해야 한다.**
 
 ## 빠른 시작
 
@@ -69,10 +76,36 @@ USB MSC 인식·SAF 접근 흐름(`RealExportAdapter`, `export/DeviceStorageAcce
 |---|---|
 | `core` 모듈 컴파일·전체 단위테스트 | ✅ 이 환경에서 실제로 실행하고 확인함 |
 | `core`의 페이로드 인코더가 스펙 7.2절 예시와 정확히 일치 | ✅ 골든 테스트로 확인함 |
-| `app` 모듈 컴파일(Compose/Room/Hilt KSP) | ❌ Android SDK 없음 - 로컬 빌드 필요 |
+| `app` 모듈 컴파일(Compose/Room/Hilt KSP, `assembleDebug`) | ✅ Android SDK를 받아 실제로 빌드 성공까지 확인함 (컴파일 오류 2건 수정) |
+| `app` 모듈의 에뮬레이터 실행 및 UI 동작 | ✅ API 35 x86_64 에뮬레이터(adb)에서 실제로 확인함 - 아래 "에뮬레이터에서 확인한 것" 참고 |
 | 공공데이터포털 특일정보 API 실호출 | ❌ 실제 스키마 미확인 - `HolidayApiPayloadParser`가 알려진 문서 기반으로 방어적으로 작성됨 |
-| USB MSC 인식 및 SAF `calendar.txt` 쓰기 | ❌ 실기기 필요 |
-| 장치(e-ink) 실물에서의 800×480 렌더링 | ❌ 실기기 필요 (앱 쪽 미리보기는 근사치) |
+| USB MSC 인식 및 SAF `calendar.txt` 쓰기 | ❌ 실기기 필요 (에뮬레이터는 USB／실제 SAF 트리를 흉내낼 수 없음) |
+| 장치(e-ink) 실물에서의 800×480 렌더링 | ❌ 실기기 필요 (앱 쪽 미리보기는 근사치이며, 에뮬레이터 화면에서 렌더링 자체는 확인함) |
+
+### 에뮬레이터에서 확인한 것 (2026-09-19)
+
+Android SDK로 API 35(`google_apis`, x86_64) 에뮬레이터(`hagoondori_test` AVD)를
+직접 띄우고 `adb`로 조작해 다음을 실기기와 동일한 방식으로 확인했다 - 매 조작마다
+`logcat`으로 크래시(FATAL/AndroidRuntime)가 없는지도 함께 확인했다.
+
+- 최초 실행 시 빈 상태 안내(복무 정보 없음) → 설정에서 입대일/전역일 입력 →
+  저장 → 대시보드 D-day/외출 잔여가 실시간으로 갱신되는 전체 흐름
+- 달력 화면에서 일반 일정(F4) 추가 → 달력 셀에 마커 표시 → 삭제까지, 이 세션에서
+  새로 구현한 기능이 실제로 Room에 저장되고 화면에 반영됨을 확인
+- 출타관리 화면에서 휴가 종류 추가
+- 근무입력 화면에서 여러 날짜를 골라 당직 일괄 저장 → 선택한 날짜의 다음 날에
+  비번이 자동으로 추가되는 로직(4.16절)이 실제로 동작함을 확인
+- 설정 → 장치 미리보기(F16, 밤/낮 테마 전환)와 "페이로드 파일로 저장" →
+  앱 전용 저장소에 생성된 `calendar.txt`를 직접 열어 `V/M/P/D/Z` 형식이 스펙
+  그대로 나오는 것까지 확인
+- **버그 발견 및 수정 2건** (둘 다 "한 번도 컴파일된 적 없는 코드"에서 나온 실수):
+  1. `app/src/main/res/values/themes.xml` - 존재하지 않는 플랫폼 테마
+     `Theme.DeviceDefault.DayNight.NoActionBar` 참조 (컴파일 자체가 안 됨)
+  2. `DevicePreviewRenderer.kt` - 장치 미리보기 헤더 텍스트("전역 D+…")가 다른
+     도형과 달리 실제 화면 밀도로 측정된 뒤 캔버스 배율이 한 번 더 곱해져,
+     텍스트만 2~3배 커져 달력 그리드와 겹쳐 보이는 버그. `sizeSp`를 밀도로
+     나눠 상쇄하도록 고쳤다 - GPU 가속 여부와 무관하게 재현되었으므로 에뮬레이터
+     렌더링 아티팩트가 아니라 실제 로직 버그였다.
 
 ## 아키텍처 한눈에 보기
 

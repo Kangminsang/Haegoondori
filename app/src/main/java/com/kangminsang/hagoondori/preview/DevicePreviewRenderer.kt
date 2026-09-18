@@ -57,8 +57,15 @@ fun DevicePreviewRenderer(
     }
 }
 
-private fun textStyle(color: Color, sizeSp: Float) =
-    TextStyle(color = color, fontSize = TextUnit(sizeSp, TextUnitType.Sp))
+/**
+ * [sizeSp]는 이 렌더러의 800×480 논리 좌표계 단위다 - 실제 sp가 아니다.
+ * `drawText`는 폰트 크기를 기기 실제 밀도로 측정하지만, 이 함수를 감싸는
+ * `scale(scaleFactor)` 캔버스 변환은 그 측정 이후에 다시 한번 곱해지므로,
+ * 밀도를 미리 나눠 상쇄하지 않으면 텍스트만 다른 도형보다 밀도배만큼 더 커져
+ * 겹쳐 보인다(실기기 밀도가 높을수록 심해짐).
+ */
+private fun DrawScope.textStyle(color: Color, sizeSp: Float) =
+    TextStyle(color = color, fontSize = TextUnit(sizeSp / density, TextUnitType.Sp))
 
 private fun DrawScope.drawDeviceScreen(
     textMeasurer: TextMeasurer,

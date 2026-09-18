@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import javax.inject.Inject
 
@@ -102,5 +103,15 @@ class CalendarViewModel @Inject constructor(
 
     fun selectDate(date: LocalDate) {
         selectedDate.value = date
+    }
+
+    // ---- 일반 일정 (F4) ----
+
+    fun addEvent(title: String, startDate: LocalDate, endDate: LocalDate?, isImportant: Boolean, memo: String?) {
+        viewModelScope.launch { eventRepository.addEvent(title, startDate, endDate, isImportant, memo) }
+    }
+
+    fun deleteEvent(event: Event) {
+        viewModelScope.launch { eventRepository.delete(event) }
     }
 }
