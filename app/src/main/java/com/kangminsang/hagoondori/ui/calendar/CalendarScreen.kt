@@ -122,7 +122,7 @@ private fun SelectedDayDetail(day: CalendarDayInfo?, onDeleteEvent: (Event) -> U
         }
 
         if (day.hasLeave) DetailLine("휴가 사용일")
-        if (day.hasCombatRest) DetailLine("전투휴무 사용일 (영외 이동 불가)")
+        if (day.hasCombatRest) DetailLine("전투휴무 사용일")
         if (day.hasOvernight) DetailLine("외박일")
         if (day.hasPass) DetailLine("외출일")
         day.dutyAssignments.forEach { DetailLine("근무: ${it.type.name}") }

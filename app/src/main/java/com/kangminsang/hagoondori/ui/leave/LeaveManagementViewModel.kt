@@ -155,6 +155,10 @@ class LeaveManagementViewModel @Inject constructor(
         viewModelScope.launch { combatRestRepository.addUsage(startDate, endDate, memo) }
     }
 
+    fun deleteCombatRestUsage(usage: CombatRestUsage) {
+        viewModelScope.launch { combatRestRepository.deleteUsage(usage) }
+    }
+
     // ---- 외박 ----
 
     fun addOvernightRecord(date: LocalDate, memo: String?) {

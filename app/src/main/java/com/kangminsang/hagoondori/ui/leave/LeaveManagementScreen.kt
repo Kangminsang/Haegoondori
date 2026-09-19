@@ -48,12 +48,14 @@ fun LeaveManagementScreen(
                     onAddType = viewModel::addLeaveType,
                     onAddGrant = viewModel::addLeaveGrant,
                     onAddUsage = viewModel::addLeaveUsage,
+                    onDeleteUsage = viewModel::deleteLeaveUsage,
                     modifier = Modifier.fillMaxSize(),
                 )
                 1 -> CombatRestTab(
                     uiState = uiState,
                     onAddGrant = viewModel::addCombatRestGrant,
                     onAddUsage = viewModel::addCombatRestUsage,
+                    onDeleteUsage = viewModel::deleteCombatRestUsage,
                     modifier = Modifier.fillMaxSize(),
                 )
                 2 -> OvernightTab(

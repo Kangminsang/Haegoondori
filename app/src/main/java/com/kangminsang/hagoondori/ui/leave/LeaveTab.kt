@@ -7,8 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -18,8 +22,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.ui.dashboard.LeaveTypeSummary
@@ -33,6 +39,7 @@ fun LeaveTab(
     onAddType: (name: String, cap: Int?, overflowBehavior: OverflowBehavior) -> Unit,
     onAddGrant: (leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?) -> Unit,
     onAddUsage: (leaveTypeId: String, startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
+    onDeleteUsage: (LeaveUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxWidth()) {
@@ -41,8 +48,10 @@ fun LeaveTab(
         items(uiState.leaveSummaries, key = { it.type.id }) { summary ->
             LeaveTypeCard(
                 summary = summary,
+                usages = uiState.leaveUsages.filter { it.leaveTypeId == summary.type.id },
                 onAddGrant = { days, date, reason -> onAddGrant(summary.type.id, days, date, reason) },
                 onAddUsage = { start, end, label -> onAddUsage(summary.type.id, start, end, label) },
+                onDeleteUsage = onDeleteUsage,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
@@ -97,8 +106,10 @@ private fun AddLeaveTypeSection(
 @Composable
 private fun LeaveTypeCard(
     summary: LeaveTypeSummary,
+    usages: List<LeaveUsage>,
     onAddGrant: (days: Int, grantedDate: LocalDate, reason: String?) -> Unit,
     onAddUsage: (startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
+    onDeleteUsage: (LeaveUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -132,6 +143,26 @@ private fun LeaveTypeCard(
             }
             if (showUsageForm) {
                 UsageForm(onSubmit = { start, end, label -> onAddUsage(start, end, label); showUsageForm = false })
+            }
+
+            if (usages.isNotEmpty()) {
+                Text(
+                    "최근 사용 기록",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                )
+                usages.sortedByDescending { it.startDate }.forEach { usage ->
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${usage.startDate} ~ ${usage.endDate}" + (usage.label?.let { " · $it" } ?: ""),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { onDeleteUsage(usage) }) {
+                            Icon(Icons.Filled.Close, contentDescription = "삭제")
+                        }
+                    }
+                }
             }
         }
     }
