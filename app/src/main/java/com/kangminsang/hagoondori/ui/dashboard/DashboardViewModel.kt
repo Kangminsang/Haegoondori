@@ -18,6 +18,7 @@ import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
+import com.kangminsang.hagoondori.data.remote.holiday.HolidayAutoRefresh
 import com.kangminsang.hagoondori.data.repository.CombatRestRepository
 import com.kangminsang.hagoondori.data.repository.LeaveRepository
 import com.kangminsang.hagoondori.data.repository.OvernightRepository
@@ -29,6 +30,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -44,7 +46,13 @@ class DashboardViewModel @Inject constructor(
     private val overnightRepository: OvernightRepository,
     private val passRepository: PassRepository,
     private val syncStateRepository: SyncStateRepository,
+    private val holidayAutoRefresh: HolidayAutoRefresh,
 ) : ViewModel() {
+
+    init {
+        // 공휴일이 오래됐으면 조용히 갱신한다. 실패해도 내장 데이터가 있으므로 화면은 영향받지 않는다.
+        viewModelScope.launch { holidayAutoRefresh.refreshIfStale() }
+    }
 
     val uiState: StateFlow<DashboardUiState> = combine(
         profileRepository.observe(),
@@ -76,11 +84,14 @@ class DashboardViewModel @Inject constructor(
         val today = AppClock.today()
 
         val leaveSummaries = leaveData.types.map { type ->
+            val s = LeaveCalculator.summarize(type, leaveData.grants, leaveData.usages, AppClock.today())
             LeaveTypeSummary(
                 type = type,
-                granted = LeaveCalculator.cappedGranted(type, leaveData.grants),
-                used = LeaveCalculator.totalUsed(type.id, leaveData.usages),
-                remaining = LeaveCalculator.remaining(type, leaveData.grants, leaveData.usages),
+                granted = s.granted,
+                used = s.used,
+                expired = s.expired,
+                remaining = s.remaining,
+                grantStatuses = s.grants,
                 remainingCapCapacity = LeaveCalculator.remainingCapCapacity(type, leaveData.grants),
             )
         }

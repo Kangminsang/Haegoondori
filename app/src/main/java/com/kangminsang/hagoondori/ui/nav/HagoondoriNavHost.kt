@@ -15,7 +15,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.kangminsang.hagoondori.preview.DevicePreviewScreen
 import com.kangminsang.hagoondori.ui.calendar.CalendarScreen
 import com.kangminsang.hagoondori.ui.dashboard.DashboardScreen
 import com.kangminsang.hagoondori.ui.duty.DutyBulkInputScreen
@@ -23,8 +22,7 @@ import com.kangminsang.hagoondori.ui.leave.LeaveManagementScreen
 import com.kangminsang.hagoondori.ui.settings.SettingsScreen
 
 /**
- * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 5개 + 설정에서 진입하는
- * 장치 미리보기(F16) 서브 라우트로 구성된다.
+ * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 5개로 구성된다.
  */
 @Composable
 fun HagoondoriNavHost() {
@@ -52,12 +50,7 @@ fun HagoondoriNavHost() {
             composable(HagoondoriDestination.Calendar.route) { CalendarScreen() }
             composable(HagoondoriDestination.Leave.route) { LeaveManagementScreen() }
             composable(HagoondoriDestination.Duty.route) { DutyBulkInputScreen() }
-            composable(HagoondoriDestination.Settings.route) {
-                SettingsScreen(
-                    onOpenDevicePreview = { navController.navigate(HagoondoriSubRoute.DEVICE_PREVIEW) },
-                )
-            }
-            composable(HagoondoriSubRoute.DEVICE_PREVIEW) { DevicePreviewScreen() }
+            composable(HagoondoriDestination.Settings.route) { SettingsScreen() }
         }
     }
 }

@@ -58,11 +58,11 @@ fun UserProfile.toEntity(): UserProfileEntity = UserProfileEntity(
     autoAddOffDuty = autoAddOffDuty,
 )
 
-fun LeaveTypeEntity.toCore(): LeaveType = LeaveType(id, name, cap, overflowBehavior)
-fun LeaveType.toEntity(): LeaveTypeEntity = LeaveTypeEntity(id, name, cap, overflowBehavior)
+fun LeaveTypeEntity.toCore(): LeaveType = LeaveType(id, name, cap, overflowBehavior, fixedDays)
+fun LeaveType.toEntity(): LeaveTypeEntity = LeaveTypeEntity(id, name, cap, overflowBehavior, fixedDays)
 
-fun LeaveGrantEntity.toCore(): LeaveGrant = LeaveGrant(id, leaveTypeId, days, grantedDate, reason)
-fun LeaveGrant.toEntity(): LeaveGrantEntity = LeaveGrantEntity(id, leaveTypeId, days, grantedDate, reason)
+fun LeaveGrantEntity.toCore(): LeaveGrant = LeaveGrant(id, leaveTypeId, days, grantedDate, reason, expiryDate)
+fun LeaveGrant.toEntity(): LeaveGrantEntity = LeaveGrantEntity(id, leaveTypeId, days, grantedDate, reason, expiryDate)
 
 fun LeaveUsageEntity.toCore(): LeaveUsage = LeaveUsage(id, leaveTypeId, startDate, endDate, label)
 fun LeaveUsage.toEntity(): LeaveUsageEntity = LeaveUsageEntity(id, leaveTypeId, startDate, endDate, label)
@@ -73,8 +73,8 @@ fun CombatRestGrant.toEntity(): CombatRestGrantEntity = CombatRestGrantEntity(id
 fun CombatRestUsageEntity.toCore(): CombatRestUsage = CombatRestUsage(id, startDate, endDate, memo)
 fun CombatRestUsage.toEntity(): CombatRestUsageEntity = CombatRestUsageEntity(id, startDate, endDate, memo)
 
-fun OvernightRecordEntity.toCore(): OvernightRecord = OvernightRecord(id, date, memo)
-fun OvernightRecord.toEntity(): OvernightRecordEntity = OvernightRecordEntity(id, date, memo)
+fun OvernightRecordEntity.toCore(): OvernightRecord = OvernightRecord(id, date, memo, endDate)
+fun OvernightRecord.toEntity(): OvernightRecordEntity = OvernightRecordEntity(id, date, memo, endDate)
 
 fun OvernightForfeitureEntity.toCore(): OvernightForfeiture = OvernightForfeiture(id, slotIndex, reason, recordedDate)
 fun OvernightForfeiture.toEntity(): OvernightForfeitureEntity =

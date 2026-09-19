@@ -16,9 +16,3 @@ enum class HagoondoriDestination(val route: String, val label: String, val icon:
     Duty(route = "duty", label = "근무입력", icon = Icons.Filled.Assignment),
     Settings(route = "settings", label = "설정", icon = Icons.Filled.Settings),
 }
-
-/** 하단 탭에 속하지 않는 서브 라우트(설정 화면에서 진입). */
-object HagoondoriSubRoute {
-    /** 장치 미리보기(F16) - 800x480 렌더링 결과를 확인한다. */
-    const val DEVICE_PREVIEW = "preview"
-}

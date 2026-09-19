@@ -24,11 +24,11 @@ import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
 
-/** 외박 탭 (F11~F13): 다음 예정일/D-day, 지연·선행 상태, 차수 이력, 차수 소멸 처리. */
+/** 외박 탭 (F11~F13): 다음 예정일/D-day, 차수 이력, 차수 소멸 처리. */
 @Composable
 fun OvernightTab(
     uiState: LeaveManagementUiState,
-    onAddRecord: (date: LocalDate, memo: String?) -> Unit,
+    onAddRecord: (date: LocalDate, endDate: LocalDate, memo: String?) -> Unit,
     onAddForfeiture: (slotIndex: Int, reason: String?, recordedDate: LocalDate?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -53,23 +53,14 @@ fun OvernightTab(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(top = 4.dp),
                     )
-                    val lastDelay = schedule.matches.lastOrNull()?.delayDays
-                    if (lastDelay != null && lastDelay != 0) {
-                        val text = if (lastDelay > 0) "직전 외박이 예정보다 ${lastDelay}일 지연됐습니다" else "직전 외박을 ${-lastDelay}일 앞당겨 사용했습니다"
-                        Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
-                    }
                 }
             }
 
             if (schedule.matches.isNotEmpty()) {
                 Text("외박 이력", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
                 schedule.matches.sortedByDescending { it.record.date }.forEach { match ->
-                    val delayText = when {
-                        match.delayDays > 0 -> " (${match.delayDays}일 지연)"
-                        match.delayDays < 0 -> " (${-match.delayDays}일 선행)"
-                        else -> ""
-                    }
-                    Text("${match.slotIndex + 1}차 · ${match.record.date}$delayText", style = MaterialTheme.typography.bodyMedium)
+                    val period = if (match.record.endDate == match.record.date) "${match.record.date}" else "${match.record.date} ~ ${match.record.endDate}"
+                    Text("${match.slotIndex + 1}차 · $period", style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
@@ -91,7 +82,7 @@ fun OvernightTab(
             Text("+ 외박 기록 추가")
         }
         if (showRecordForm) {
-            RecordForm(onSubmit = { date, memo -> onAddRecord(date, memo); showRecordForm = false })
+            RecordForm(onSubmit = { date, endDate, memo -> onAddRecord(date, endDate, memo); showRecordForm = false })
         }
 
         TextButton(onClick = { showForfeitureForm = !showForfeitureForm; showRecordForm = false }) {
@@ -107,15 +98,20 @@ fun OvernightTab(
 }
 
 @Composable
-private fun RecordForm(onSubmit: (date: LocalDate, memo: String?) -> Unit) {
+private fun RecordForm(onSubmit: (date: LocalDate, endDate: LocalDate, memo: String?) -> Unit) {
     var date by remember { mutableStateOf<LocalDate?>(AppClock.today()) }
+    var endDate by remember { mutableStateOf<LocalDate?>(AppClock.today()) }
     var memo by remember { mutableStateOf("") }
+    val start = date
+    val end = endDate
 
     Column {
-        DateTextField("외박일", date, { date = it }, modifier = Modifier.fillMaxWidth())
+        DateTextField("외박 시작일 (6주 차수 기준일)", date, { date = it; if (endDate == null || it == null || endDate!! < it) endDate = it }, modifier = Modifier.fillMaxWidth())
+        DateTextField("종료일(포함, 휴가와 이어 쓰면 휴가 끝나는 날)", endDate, { endDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         OutlinedTextField(value = memo, onValueChange = { memo = it }, label = { Text("메모(선택)") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         Button(
-            onClick = { date?.let { onSubmit(it, memo.ifBlank { null }) } },
+            enabled = start != null && end != null && end >= start,
+            onClick = { if (start != null && end != null) onSubmit(start, end, memo.ifBlank { null }) },
             modifier = Modifier.padding(top = 8.dp),
         ) { Text("저장") }
     }

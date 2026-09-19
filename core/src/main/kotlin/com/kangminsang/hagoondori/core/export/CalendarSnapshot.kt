@@ -5,6 +5,8 @@ import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OvernightRecord
+import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.UserProfile
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -36,7 +38,11 @@ data class CalendarSnapshot(
     val holidays: List<Holiday>,
     val events: List<Event>,
     val leaveUsages: List<LeaveUsage>,
+    /** 외박은 휴가와 같은 기간 표시로 내보낸다(부대에서 휴가와 붙여 쓰기 때문). */
+    val overnightRecords: List<OvernightRecord> = emptyList(),
     val combatRestUsages: List<CombatRestUsage>,
+    /** 외출한 날. 장치에는 평일/휴일 구분 없이 날짜만 보낸다(`G` 레코드). */
+    val passRecords: List<PassRecord> = emptyList(),
     val dutyAssignments: List<DutyAssignment>,
 ) {
     init {

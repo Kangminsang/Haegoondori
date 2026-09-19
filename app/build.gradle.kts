@@ -26,22 +26,6 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // 공공데이터포털 "한국천문연구원 특일 정보" 서비스키. local.properties에
-        // holiday.api.key=... 로 직접 넣는다(레포에 커밋되지 않음, .gitignore 대상).
-        // 키가 없어도 앱은 정상 동작한다 - HolidayRemoteRepository가 빈 문자열을
-        // 감지하면 네트워크 호출을 생략하고 내장 데이터+수동입력 경로로 넘어간다.
-        val localProperties = Properties().apply {
-            val localPropertiesFile = rootProject.file("local.properties")
-            if (localPropertiesFile.exists()) {
-                localPropertiesFile.inputStream().use { load(it) }
-            }
-        }
-        buildConfigField(
-            "String",
-            "HOLIDAY_API_KEY",
-            "\"${localProperties.getProperty("holiday.api.key", "")}\"",
-        )
     }
 
     buildTypes {

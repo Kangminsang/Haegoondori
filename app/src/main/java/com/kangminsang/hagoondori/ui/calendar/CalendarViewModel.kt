@@ -3,6 +3,7 @@ package com.kangminsang.hagoondori.ui.calendar
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kangminsang.hagoondori.core.calc.HolidayJudge
+import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
@@ -10,6 +11,7 @@ import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.data.repository.CombatRestRepository
 import com.kangminsang.hagoondori.data.repository.DutyRepository
 import com.kangminsang.hagoondori.data.repository.EventRepository
@@ -82,8 +84,10 @@ class CalendarViewModel @Inject constructor(
                 isHoliday = HolidayJudge.isHoliday(date, edh.holidays),
                 hasLeave = lcr.leaveUsages.any { date in it.startDate..it.endDate },
                 hasCombatRest = lcr.combatRestUsages.any { date in it.startDate..it.endDate },
-                hasOvernight = op.overnightRecords.any { it.date == date },
+                hasOvernight = op.overnightRecords.any { date in it.date..it.endDate },
                 hasPass = op.passRecords.any { it.date == date },
+                passRecords = op.passRecords.filter { it.date == date },
+                autoPassType = PassCalculator.classifyType(date, edh.holidays),
                 events = edh.events.filter { date in it.startDate..(it.endDate ?: it.startDate) },
                 dutyAssignments = edh.duties.filter { it.date == date },
             )
@@ -109,6 +113,16 @@ class CalendarViewModel @Inject constructor(
 
     fun addEvent(title: String, startDate: LocalDate, endDate: LocalDate?, isImportant: Boolean, memo: String?) {
         viewModelScope.launch { eventRepository.addEvent(title, startDate, endDate, isImportant, memo) }
+    }
+
+    // ---- 외출 ----
+
+    fun addPass(date: LocalDate, type: PassType) {
+        viewModelScope.launch { passRepository.addRecord(date, type, null) }
+    }
+
+    fun deletePass(record: PassRecord) {
+        viewModelScope.launch { passRepository.deleteRecord(record) }
     }
 
     fun deleteEvent(event: Event) {

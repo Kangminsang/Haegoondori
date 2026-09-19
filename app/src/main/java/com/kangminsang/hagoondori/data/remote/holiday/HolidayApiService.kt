@@ -20,9 +20,8 @@ interface HolidayApiService {
     @GET("getRestDeInfo")
     suspend fun getRestDeInfo(
         /**
-         * 공공데이터포털에서 발급받은 서비스키(Decoding 키 권장). local.properties의
-         * `holiday.api.key`에 넣은 값이 [com.kangminsang.hagoondori.BuildConfig.HOLIDAY_API_KEY]로
-         * 전달된다. Retrofit이 표준적으로 URL 인코딩하므로, 이미 퍼센트 인코딩된
+         * 공공데이터포털에서 발급받은 서비스키(Decoding 키 권장). 사용자가 설정 화면에서
+         * 입력해 [HolidayApiKeyStore]에 보관한 값이다(빌드에 넣지 않는다). Retrofit이 표준적으로 URL 인코딩하므로, 이미 퍼센트 인코딩된
          * "Encoding" 키를 그대로 쓰면 이중 인코딩될 수 있다 - Decoding 키를 쓸 것.
          */
         @Query("serviceKey") serviceKey: String,

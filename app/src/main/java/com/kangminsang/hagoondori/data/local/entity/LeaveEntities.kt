@@ -12,6 +12,7 @@ data class LeaveTypeEntity(
     val name: String,
     val cap: Int?,
     val overflowBehavior: OverflowBehavior,
+    val fixedDays: Int?,
 )
 
 /**
@@ -25,6 +26,7 @@ data class LeaveGrantEntity(
     val days: Int,
     val grantedDate: LocalDate,
     val reason: String?,
+    val expiryDate: LocalDate?,
 )
 
 /** [com.kangminsang.hagoondori.core.model.LeaveUsage]의 Room 매핑 (스펙 4.6절). */

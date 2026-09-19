@@ -27,7 +27,7 @@ import com.kangminsang.hagoondori.util.AppClock
 
 /**
  * ① 대시보드 (스펙 5.1/5.2절, F2) - 앱을 여는 주된 이유.
- * 전역/진급 D-day + 진행률, 휴가·전투휴무 요약, 다음 외박 D-day/지연 상태,
+ * 전역/진급 D-day + 진행률, 휴가·전투휴무 요약, 다음 외박 D-day,
  * 이번 달 외출 잔여, 동기화 상태 배너를 한 화면에 모은다.
  */
 @Composable
@@ -174,11 +174,6 @@ private fun OvernightSummaryCard(uiState: DashboardUiState, modifier: Modifier =
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            val lastDelay = schedule.matches.lastOrNull()?.delayDays
-            if (lastDelay != null && lastDelay != 0) {
-                val statusText = if (lastDelay > 0) "예정보다 ${lastDelay}일 지연 중" else "${-lastDelay}일 앞당겨 사용함"
-                Text(statusText, style = MaterialTheme.typography.bodySmall)
-            }
         }
     }
 }

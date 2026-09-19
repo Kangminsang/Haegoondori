@@ -51,8 +51,14 @@ class LeaveRepository @Inject constructor(
     fun observeGrants(leaveTypeId: String): Flow<List<LeaveGrant>> =
         dao.observeGrants(leaveTypeId).map { list -> list.map { it.toCore() } }
 
-    suspend fun addGrant(leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?): LeaveGrant {
-        val grant = LeaveGrant(IdGenerator.newId(), leaveTypeId, days, grantedDate, reason)
+    suspend fun addGrant(
+        leaveTypeId: String,
+        days: Int,
+        grantedDate: LocalDate,
+        reason: String?,
+        expiryDate: LocalDate? = null,
+    ): LeaveGrant {
+        val grant = LeaveGrant(IdGenerator.newId(), leaveTypeId, days, grantedDate, reason, expiryDate)
         dao.upsertGrant(grant.toEntity())
         syncStateRepository.markChanged()
         return grant

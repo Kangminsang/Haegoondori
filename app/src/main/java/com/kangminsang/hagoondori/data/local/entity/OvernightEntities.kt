@@ -13,6 +13,7 @@ data class OvernightRecordEntity(
     @PrimaryKey val id: String,
     val date: LocalDate,
     val memo: String?,
+    val endDate: LocalDate,
 )
 
 /**

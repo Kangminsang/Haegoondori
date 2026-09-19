@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kangminsang.hagoondori.core.calc.HolidayJudge
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.DutyType
+import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.ui.calendar.CalendarGridBuilder
 import com.kangminsang.hagoondori.util.AppClock
@@ -61,6 +62,7 @@ fun DutyBulkInputScreen(
     var month by remember { mutableStateOf(today.monthNumber) }
     var selectedDates by remember { mutableStateOf(setOf<LocalDate>()) }
     var selectedType by remember { mutableStateOf(DutyType.DUTY) }
+    var isPassMode by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -82,7 +84,7 @@ fun DutyBulkInputScreen(
             }
 
             Text(
-                "여러 날짜를 탭해서 선택한 뒤, 근무 종류를 골라 한 번에 저장하세요",
+                "여러 날짜를 탭해서 선택한 뒤, 근무 종류(또는 외출)를 골라 한 번에 저장하세요",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
             )
@@ -92,6 +94,7 @@ fun DutyBulkInputScreen(
                 month = month,
                 holidays = uiState.holidays,
                 existingAssignments = uiState.existingAssignments,
+                existingPasses = uiState.existingPasses,
                 selectedDates = selectedDates,
                 onToggleDate = { date ->
                     selectedDates = if (date in selectedDates) selectedDates - date else selectedDates + date
@@ -101,15 +104,28 @@ fun DutyBulkInputScreen(
             Row(modifier = Modifier.padding(top = 16.dp)) {
                 DutyType.entries.forEach { type ->
                     FilterChip(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
+                        selected = !isPassMode && selectedType == type,
+                        onClick = { selectedType = type; isPassMode = false },
                         label = { Text(dutyTypeLabel(type)) },
                         modifier = Modifier.padding(end = 8.dp),
                     )
                 }
+                FilterChip(
+                    selected = isPassMode,
+                    onClick = { isPassMode = true },
+                    label = { Text("외출") },
+                )
             }
 
-            if (selectedType == DutyType.DUTY && uiState.profile?.autoAddOffDuty == true) {
+            if (isPassMode) {
+                Text(
+                    "평일/휴일은 날짜별로 자동 판정됩니다. 이미 외출이 기록된 날짜는 건너뜁니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            if (!isPassMode && selectedType == DutyType.DUTY && uiState.profile?.autoAddOffDuty == true) {
                 Text(
                     "당직으로 저장하면 선택한 날짜들의 다음 날이 비번으로 자동 추가됩니다",
                     style = MaterialTheme.typography.bodySmall,
@@ -120,7 +136,7 @@ fun DutyBulkInputScreen(
             Button(
                 enabled = selectedDates.isNotEmpty(),
                 onClick = {
-                    viewModel.submit(selectedDates, selectedType) { saved, skipped ->
+                    val onResult = { saved: Int, skipped: Int ->
                         val message = if (skipped > 0) {
                             "${saved}건 저장, ${skipped}건은 이미 있어 건너뜀"
                         } else {
@@ -128,7 +144,9 @@ fun DutyBulkInputScreen(
                         }
                         selectedDates = emptySet()
                         scope.launch { snackbarHostState.showSnackbar(message) }
+                        Unit
                     }
+                    if (isPassMode) viewModel.submitPass(selectedDates, onResult) else viewModel.submit(selectedDates, selectedType, onResult)
                 },
                 modifier = Modifier.padding(top = 16.dp),
             ) { Text("${selectedDates.size}건 일괄 저장") }
@@ -136,11 +154,6 @@ fun DutyBulkInputScreen(
     }
 }
 
-private fun dutyTypeLabel(type: DutyType): String = when (type) {
-    DutyType.DUTY -> "당직"
-    DutyType.OFF_DUTY -> "비번"
-    DutyType.MESS -> "츄라이(식사당번)"
-}
 
 @Composable
 private fun DutyMonthGrid(
@@ -148,11 +161,13 @@ private fun DutyMonthGrid(
     month: Int,
     holidays: List<Holiday>,
     existingAssignments: List<DutyAssignment>,
+    existingPasses: List<PassRecord>,
     selectedDates: Set<LocalDate>,
     onToggleDate: (LocalDate) -> Unit,
 ) {
     val gridDates = remember(year, month) { CalendarGridBuilder.buildGrid(year, month) }
     val assignmentsByDate = remember(existingAssignments) { existingAssignments.groupBy { it.date } }
+    val passDates = remember(existingPasses) { existingPasses.map { it.date }.toSet() }
 
     Column {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -188,9 +203,10 @@ private fun DutyMonthGrid(
                             else -> MaterialTheme.colorScheme.onSurface
                         }
                         Text(date.dayOfMonth.toString(), color = textColor, style = MaterialTheme.typography.bodyMedium)
-                        if (existing.isNotEmpty()) {
+                        val marks = existing.map { dutyTypeShortLabel(it.type) } + if (date in passDates) listOf("외") else emptyList()
+                        if (marks.isNotEmpty()) {
                             Text(
-                                existing.joinToString("·") { dutyTypeLabel(it.type).take(1) },
+                                marks.joinToString("·"),
                                 color = textColor,
                                 style = MaterialTheme.typography.labelLarge,
                             )

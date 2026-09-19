@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 // 해군 색상(감청색 계열)을 기본 톤으로 삼은 Material3 팔레트.
 // 주의: 이 색상은 앱 화면(휴대폰) 전용이다 - 장치(e-ink) 쪽 렌더링은 흑/적/백
-// 3색뿐이며 완전히 별개의 렌더링 로직(preview/DevicePreviewRenderer)에서 다룬다.
+// 3색뿐이며 앱과 무관하게 장치 펌웨어의 렌더링이 결정한다.
 // core 데이터 모델에는 색상 개념이 전혀 없다(6.4절 규칙 3).
 
 val NavyBlue40 = Color(0xFF33547E)

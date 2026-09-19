@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayFetchResult
@@ -40,6 +41,9 @@ import kotlinx.datetime.LocalDate
 fun HolidaySection(
     holidays: List<Holiday>,
     onRefresh: ((List<HolidayFetchResult>) -> Unit) -> Unit,
+    hasApiKey: Boolean,
+    onSaveApiKey: (String) -> Unit,
+    onClearApiKey: () -> Unit,
     onAddManual: (Holiday) -> Unit,
     onDelete: (Holiday) -> Unit,
     modifier: Modifier = Modifier,
@@ -52,16 +56,24 @@ fun HolidaySection(
         Column(modifier = Modifier.padding(16.dp)) {
             Text("공휴일", style = MaterialTheme.typography.titleMedium)
 
+            val refresh = {
+                isRefreshing = true
+                onRefresh { results ->
+                    isRefreshing = false
+                    resultMessage = summarize(results)
+                }
+            }
+
+            ApiKeyInput(
+                hasKey = hasApiKey,
+                onSave = { key -> onSaveApiKey(key); refresh() },
+                onClear = onClearApiKey,
+            )
+
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     enabled = !isRefreshing,
-                    onClick = {
-                        isRefreshing = true
-                        onRefresh { results ->
-                            isRefreshing = false
-                            resultMessage = summarize(results)
-                        }
-                    },
+                    onClick = { refresh() },
                 ) { Text("공휴일 갱신") }
                 if (isRefreshing) {
                     CircularProgressIndicator(modifier = Modifier.padding(start = 12.dp).size(20.dp))
@@ -92,6 +104,37 @@ fun HolidaySection(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 공공데이터포털 서비스키 입력. 키는 이 기기의 앱 전용 저장소에만 보관되고 화면에는 가려서
+ * 보인다. 저장하면 바로 공휴일을 한 번 조회해 키가 맞는지 확인한다.
+ */
+@Composable
+private fun ApiKeyInput(hasKey: Boolean, onSave: (String) -> Unit, onClear: () -> Unit) {
+    var keyText by remember { mutableStateOf("") }
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Text(
+            if (hasKey) "공공데이터포털 키가 저장되어 있습니다 (앱을 켤 때 자동으로 공휴일을 갱신합니다)"
+            else "공공데이터포털(특일 정보) 서비스키를 입력하면 공휴일을 자동으로 받아옵니다",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedTextField(
+            value = keyText,
+            onValueChange = { keyText = it },
+            label = { Text(if (hasKey) "새 키로 바꾸려면 입력" else "서비스키") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        )
+        Row {
+            TextButton(
+                enabled = keyText.isNotBlank(),
+                onClick = { onSave(keyText); keyText = "" },
+            ) { Text("키 저장") }
+            if (hasKey) TextButton(onClick = onClear) { Text("키 삭제") }
         }
     }
 }

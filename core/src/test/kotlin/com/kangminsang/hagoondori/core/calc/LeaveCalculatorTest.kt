@@ -15,6 +15,15 @@ class LeaveCalculatorTest {
     private val reward = LeaveType(id = "reward", name = "포상휴가", cap = 17, overflowBehavior = OverflowBehavior.CONVERT_TO_COMBAT_REST)
 
     @Test
+    fun `fixedDays type ignores grants - total is the fixed amount and remaining subtracts usage`() {
+        val regular = LeaveType("regular", "정기휴가", cap = null, fixedDays = 27)
+        val usages = listOf(LeaveUsage("u", "regular", LocalDate(2026, 9, 1), LocalDate(2026, 9, 10)))
+        assertEquals(27, LeaveCalculator.cappedGranted(regular, emptyList()))
+        assertEquals(17, LeaveCalculator.remaining(regular, emptyList(), usages))
+        assertNull(LeaveCalculator.remainingCapCapacity(regular, emptyList()))
+    }
+
+    @Test
     fun `usageDays counts a same-day request as one day`() {
         val usage = LeaveUsage("u1", "annual", LocalDate(2026, 9, 4), LocalDate(2026, 9, 4))
         assertEquals(1, LeaveCalculator.usageDays(usage))
@@ -88,5 +97,68 @@ class LeaveCalculatorTest {
             LeaveUsage("u2", "annual", LocalDate(2026, 5, 5), LocalDate(2026, 5, 5)), // 1일
         )
         assertEquals(7, LeaveCalculator.remaining(annual, grants, usages))
+    }
+
+    // ---- 유효 기간 (summarize) ----
+
+    private val today = LocalDate(2026, 9, 19)
+    private fun d(m: Int, day: Int, y: Int = 2026) = LocalDate(y, m, day)
+    private fun grant(id: String, days: Int, granted: LocalDate, expiry: LocalDate? = null) =
+        LeaveGrant(id, "consolation", days, granted, null, expiry)
+    private val consolation = LeaveType("consolation", "위로휴가", cap = null)
+    private fun use(id: String, start: LocalDate, end: LocalDate = start) = LeaveUsage(id, "consolation", start, end)
+
+    @Test
+    fun `summarize without expiry equals the old remaining`() {
+        val grants = listOf(grant("g1", 3, d(1, 1)), grant("g2", 2, d(2, 1)))
+        val usages = listOf(use("u", d(3, 1), d(3, 2)))
+        val s = LeaveCalculator.summarize(consolation, grants, usages, today)
+        assertEquals(5, s.granted)
+        assertEquals(2, s.used)
+        assertEquals(0, s.expired)
+        assertEquals(LeaveCalculator.remaining(consolation, grants, usages), s.remaining)
+    }
+
+    @Test
+    fun `unused days of an expired grant are lost`() {
+        val grants = listOf(grant("g1", 3, d(1, 1), expiry = d(6, 30)), grant("g2", 2, d(2, 1)))
+        val s = LeaveCalculator.summarize(consolation, grants, emptyList(), today)
+        assertEquals(3, s.expired)
+        assertEquals(2, s.remaining)
+        assertEquals(3, s.grants.first { it.grant.id == "g1" }.expiredDays)
+    }
+
+    @Test
+    fun `usage consumes the earliest expiring grant first`() {
+        val grants = listOf(grant("late", 2, d(1, 1), expiry = d(12, 31)), grant("soon", 2, d(1, 2), expiry = d(10, 31)))
+        val s = LeaveCalculator.summarize(consolation, grants, listOf(use("u", d(8, 1), d(8, 2))), today)
+        assertEquals(0, s.grants.first { it.grant.id == "soon" }.remainingDays)
+        assertEquals(2, s.grants.first { it.grant.id == "late" }.remainingDays)
+    }
+
+    @Test
+    fun `a grant already expired on the usage date is not used`() {
+        val grants = listOf(grant("old", 2, d(1, 1), expiry = d(3, 31)), grant("new", 2, d(2, 1)))
+        val s = LeaveCalculator.summarize(consolation, grants, listOf(use("u", d(6, 1))), today)
+        assertEquals(1, s.grants.first { it.grant.id == "new" }.usedDays)
+        assertEquals(0, s.grants.first { it.grant.id == "old" }.usedDays)
+        assertEquals(2, s.expired)
+    }
+
+    @Test
+    fun `expiring today is still valid - only the day after expires`() {
+        val grants = listOf(grant("g", 2, d(1, 1), expiry = today))
+        val s = LeaveCalculator.summarize(consolation, grants, emptyList(), today)
+        assertEquals(0, s.expired)
+        assertEquals(2, s.remaining)
+    }
+
+    @Test
+    fun `cap recognizes grants in date order and ignores the overflow`() {
+        val capped = LeaveType("consolation", "포상휴가", cap = 4, overflowBehavior = OverflowBehavior.CONVERT_TO_COMBAT_REST)
+        val grants = listOf(grant("a", 3, d(1, 1)), grant("b", 3, d(2, 1)))
+        val s = LeaveCalculator.summarize(capped, grants, emptyList(), today)
+        assertEquals(4, s.granted)
+        assertEquals(listOf(3, 1), s.grants.map { it.recognizedDays })
     }
 }
