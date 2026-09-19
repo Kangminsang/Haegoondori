@@ -55,6 +55,7 @@ class SnapshotBuilder @Inject constructor(
             holidays = holidayRepository.getAll(),
             events = eventRepository.observeAll().first(),
             leaveUsages = leaveRepository.observeAllUsages().first(),
+            leaveTypes = leaveRepository.observeTypes().first(),
             overnightRecords = overnightRepository.observeRecords().first(),
             combatRestUsages = combatRestRepository.observeUsages().first(),
             passRecords = passRepository.observeAll().first(),

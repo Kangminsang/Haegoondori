@@ -6,6 +6,7 @@ import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.DutyType
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.Holiday
+import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
@@ -258,6 +259,33 @@ class PayloadEncoderTest {
 
         """.trimIndent()
         assertEquals(expected, PayloadEncoder.encode(snapshot))
+    }
+
+    @Test
+    fun `leave periods are labeled with the two letter leave type`() {
+        val snapshot = minimalSnapshot().copy(
+            leaveTypes = listOf(
+                LeaveType("t-reg", "정기휴가", cap = null),
+                LeaveType("t-rew", "포상휴가", cap = 17),
+                LeaveType("t-con", "위로휴가", cap = null),
+            ),
+            leaveUsages = listOf(
+                LeaveUsage("u1", "t-reg", LocalDate(2026, 9, 1), LocalDate(2026, 9, 3), "내가 붙인 이름"),
+                LeaveUsage("u2", "t-rew", LocalDate(2026, 9, 10), LocalDate(2026, 9, 11)),
+                LeaveUsage("u3", "t-con", LocalDate(2026, 9, 20), LocalDate(2026, 9, 20)),
+                LeaveUsage("u4", "unknown", LocalDate(2026, 9, 25), LocalDate(2026, 9, 25), "직접"),
+            ),
+        )
+        val lLines = PayloadEncoder.encode(snapshot).lines().filter { it.startsWith("L|") }
+        assertEquals(
+            listOf(
+                "L|2026-09-01|2026-09-03|연가",
+                "L|2026-09-10|2026-09-11|포상",
+                "L|2026-09-20|2026-09-20|위로",
+                "L|2026-09-25|2026-09-25|직접",
+            ),
+            lLines,
+        )
     }
 
     @Test

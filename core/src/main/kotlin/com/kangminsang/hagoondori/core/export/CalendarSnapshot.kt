@@ -4,6 +4,7 @@ import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.Holiday
+import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
@@ -38,6 +39,8 @@ data class CalendarSnapshot(
     val holidays: List<Holiday>,
     val events: List<Event>,
     val leaveUsages: List<LeaveUsage>,
+    /** 휴가 사용 기록의 종류 이름을 장치 라벨(포상/위로/연가)로 바꾸는 데 쓴다. */
+    val leaveTypes: List<LeaveType> = emptyList(),
     /** 외박은 휴가와 같은 기간 표시로 내보낸다(부대에서 휴가와 붙여 쓰기 때문). */
     val overnightRecords: List<OvernightRecord> = emptyList(),
     val combatRestUsages: List<CombatRestUsage>,

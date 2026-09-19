@@ -55,7 +55,12 @@ object PayloadEncoder {
             .forEach { lines += encodeEventLine(it) }
 
         // 외박은 장치에서 휴가와 같은 기간 바로 그려지므로 L 레코드로 함께 보낸다.
-        val leavePeriods = snapshot.leaveUsages.map { LeavePeriod(it.startDate, it.endDate, it.label.orEmpty()) } +
+        // 휴가는 종류를 두 글자로 줄여 라벨로 보낸다(포상/위로/연가). 종류를 알 수 없으면 사용 기록의 이름을 쓴다.
+        val typeNames = snapshot.leaveTypes.associate { it.id to it.name }
+        val leavePeriods = snapshot.leaveUsages.map { usage ->
+            val label = typeNames[usage.leaveTypeId]?.let(LeaveDeviceLabel::forTypeName) ?: usage.label.orEmpty()
+            LeavePeriod(usage.startDate, usage.endDate, label)
+        } +
             snapshot.overnightRecords.map { LeavePeriod(it.date, it.endDate, OVERNIGHT_LABEL) }
         DateRangeFilter.filterOverlapping(
             leavePeriods, snapshot.rangeStart, snapshot.rangeEnd,
