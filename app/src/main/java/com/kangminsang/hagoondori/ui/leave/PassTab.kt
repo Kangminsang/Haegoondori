@@ -53,7 +53,6 @@ fun PassTab(
                     Text("평일 ${weekdayRemaining}회 (월 ${profile.weekdayPassPerMonth}회)", style = MaterialTheme.typography.bodyMedium)
                     Text("휴일 ${holidayRemaining}회 (월 ${profile.holidayPassPerMonth}회)", style = MaterialTheme.typography.bodyMedium)
                 }
-                Text("미사용분은 이월되지 않습니다", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
             }
         }
 

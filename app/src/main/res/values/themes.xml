@@ -5,7 +5,9 @@
         여기서는 매니페스트가 요구하는 최소한의 런치 테마만 둔다. 별도 Material
         Components 라이브러리 의존성 없이도 쓸 수 있도록 플랫폼 기본 테마를 기반으로 한다.
     -->
-    <style name="Theme.Hagoondori" parent="android:Theme.DeviceDefault.DayNight.NoActionBar">
+    <style name="Theme.Hagoondori" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

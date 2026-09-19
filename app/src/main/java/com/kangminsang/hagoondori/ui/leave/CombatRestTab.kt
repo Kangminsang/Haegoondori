@@ -1,12 +1,17 @@
 package com.kangminsang.hagoondori.ui.leave
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,8 +21,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
@@ -31,6 +38,7 @@ fun CombatRestTab(
     uiState: LeaveManagementUiState,
     onAddGrant: (days: Int, grantedDate: LocalDate, reason: String?) -> Unit,
     onAddUsage: (startDate: LocalDate, endDate: LocalDate, memo: String?) -> Unit,
+    onDeleteUsage: (CombatRestUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val summary = uiState.combatRestSummary
@@ -45,7 +53,7 @@ fun CombatRestTab(
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 Text(
-                    "사용 ${summary.totalUsed}일 · 영외 이동 불가",
+                    "사용 ${summary.totalUsed}일",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -63,6 +71,26 @@ fun CombatRestTab(
         TextButton(onClick = { showUsageForm = !showUsageForm; showGrantForm = false }) { Text("+ 사용 기록") }
         if (showUsageForm) {
             CombatRestUsageForm(onSubmit = { start, end, memo -> onAddUsage(start, end, memo); showUsageForm = false })
+        }
+
+        if (uiState.combatRestUsages.isNotEmpty()) {
+            Text(
+                "최근 사용 기록",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+            )
+            uiState.combatRestUsages.sortedByDescending { it.startDate }.forEach { usage ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${usage.startDate} ~ ${usage.endDate}" + (usage.memo?.let { " · $it" } ?: ""),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onDeleteUsage(usage) }) {
+                        Icon(Icons.Filled.Close, contentDescription = "삭제")
+                    }
+                }
+            }
         }
     }
 }
