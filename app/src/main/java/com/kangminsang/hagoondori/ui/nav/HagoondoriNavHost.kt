@@ -13,6 +13,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -31,6 +34,8 @@ import com.kangminsang.hagoondori.ui.settings.SettingsScreen
 @Composable
 fun HagoondoriNavHost() {
     val navController = rememberNavController()
+    // 대시보드의 동기화 배너에서 설정으로 넘어올 때 "장치 연동" 카드까지 스크롤하라는 요청.
+    var scrollToDeviceSection by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = { HagoondoriBottomBar(navController) },
@@ -43,6 +48,7 @@ fun HagoondoriNavHost() {
             composable(HagoondoriDestination.Dashboard.route) {
                 DashboardScreen(
                     onNavigateToSync = {
+                        scrollToDeviceSection = true
                         navController.navigate(HagoondoriDestination.Settings.route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
@@ -53,7 +59,12 @@ fun HagoondoriNavHost() {
             }
             composable(HagoondoriDestination.Calendar.route) { CalendarScreen() }
             composable(HagoondoriDestination.Leave.route) { LeaveManagementScreen() }
-            composable(HagoondoriDestination.Settings.route) { SettingsScreen() }
+            composable(HagoondoriDestination.Settings.route) {
+                SettingsScreen(
+                    scrollToDeviceSection = scrollToDeviceSection,
+                    onScrollHandled = { scrollToDeviceSection = false },
+                )
+            }
         }
     }
 }

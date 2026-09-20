@@ -2,7 +2,12 @@ package com.kangminsang.hagoondori.ui.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,8 +42,12 @@ import kotlinx.coroutines.launch
  * ⑤ 설정 (스펙 5.1/5.2절, F1/F15/F17) - 복무 정보, 규정 수치, 공휴일 갱신,
  * 동기화 실행이 모두 이 화면에서 이루어진다.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SettingsScreen(
+    /** true가 되면 "장치 연동" 카드가 보이도록 스크롤한 뒤 [onScrollHandled]로 알린다(대시보드 배너에서 넘어온 경우). */
+    scrollToDeviceSection: Boolean = false,
+    onScrollHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -47,6 +56,22 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var hasHolidayApiKey by remember { mutableStateOf(viewModel.hasHolidayApiKey()) }
     var isFolderSelected by remember { mutableStateOf(viewModel.isDeviceFolderSelected()) }
+    val deviceSectionRequester = remember { BringIntoViewRequester() }
+    var scrollRequest by remember { mutableStateOf(0) }
+
+    LaunchedEffect(scrollToDeviceSection) {
+        if (scrollToDeviceSection) {
+            scrollRequest++
+            onScrollHandled()
+        }
+    }
+    // 레이아웃이 끝난 뒤에 스크롤해야 카드 위치가 잡힌다.
+    LaunchedEffect(scrollRequest) {
+        if (scrollRequest > 0) {
+            withFrameNanos { }
+            deviceSectionRequester.bringIntoView()
+        }
+    }
 
     val openTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -74,8 +99,14 @@ fun SettingsScreen(
                 syncState = uiState.syncState,
                 now = AppClock.now(),
                 onSyncNow = {
-                    viewModel.syncToDevice { result ->
-                        scope.launch { snackbarHostState.showSnackbar(exportResultMessage(result)) }
+                    if (!isFolderSelected) {
+                        // 폴더 없이는 동기화할 수 없으니 폴더 선택 버튼이 있는 카드로 안내한다.
+                        scrollRequest++
+                        scope.launch { snackbarHostState.showSnackbar("먼저 장치 폴더를 선택해 주세요") }
+                    } else {
+                        viewModel.syncToDevice { result ->
+                            scope.launch { snackbarHostState.showSnackbar(exportResultMessage(result)) }
+                        }
                     }
                 },
             )
@@ -93,7 +124,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth().bringIntoViewRequester(deviceSectionRequester)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("장치 연동", style = MaterialTheme.typography.titleMedium)
                     Text(
