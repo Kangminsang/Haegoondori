@@ -14,8 +14,8 @@ data class UserProfile(
     val enlistmentDate: LocalDate,
     /** 전역일 */
     val dischargeDate: LocalDate,
-    /** 다음 진급 예정일. 없을 수 있다 */
-    val promotionDate: LocalDate?,
+    /** 일병·상병·병장 진급일. 입력하지 않은 계급은 비어 있다 */
+    val promotionDates: PromotionDates = PromotionDates(),
     /** 첫 외박일. 6주 격자의 기산점. 아직 외박을 나가지 않았다면 없을 수 있다 */
     val firstOvernightDate: LocalDate?,
     /** 외박 주기(주). 기본 6 */

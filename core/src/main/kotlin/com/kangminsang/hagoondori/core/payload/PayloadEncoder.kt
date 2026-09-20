@@ -1,5 +1,6 @@
 package com.kangminsang.hagoondori.core.payload
 
+import com.kangminsang.hagoondori.core.calc.ServiceScheduleCalculator
 import com.kangminsang.hagoondori.core.export.CalendarSnapshot
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
@@ -40,7 +41,7 @@ object PayloadEncoder {
 
         lines += "V|$PAYLOAD_VERSION"
         lines += encodeMetaLine(snapshot)
-        lines += encodeProfileLine(snapshot.profile)
+        lines += encodeProfileLine(snapshot.profile, snapshot.generatedAt)
         snapshot.nextOvernightDate?.let { lines += "O|$it" }
 
         DateRangeFilter.filterWithin(snapshot.holidays, snapshot.rangeStart, snapshot.rangeEnd) { it.date }
@@ -101,8 +102,13 @@ object PayloadEncoder {
     private fun encodeMetaLine(snapshot: CalendarSnapshot): String =
         "M|${formatGeneratedAt(snapshot.generatedAt)}|${snapshot.rangeStart}|${snapshot.rangeEnd}"
 
-    private fun encodeProfileLine(profile: UserProfile): String {
-        val promotion = profile.promotionDate?.toString().orEmpty()
+    /**
+     * 장치는 진급일을 하나만 받는다(스펙 P 레코드). 그래서 생성 시각 기준으로 가장 가까운 남은 진급일을
+     * 보낸다. 모든 진급이 지났으면 비워서 보낸다.
+     */
+    private fun encodeProfileLine(profile: UserProfile, generatedAt: Instant): String {
+        val today = generatedAt.toLocalDateTime(KST).date
+        val promotion = ServiceScheduleCalculator.nextPromotion(profile.promotionDates, today)?.second?.toString().orEmpty()
         return "P|${profile.enlistmentDate}|${profile.dischargeDate}|$promotion|" +
             "${formatTime(profile.wakeUpTime)}|${formatTime(profile.dinnerTime)}"
     }

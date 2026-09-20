@@ -95,4 +95,12 @@ class OutingPeriodCalculatorTest {
         assertEquals(d(9, 25), p.end)
         assertEquals(listOf(OutingPeriod.Part("외박", 2), OutingPeriod.Part("포상", 2)), p.parts)
     }
+
+    @Test
+    fun `departure is 8 in the morning on the start date in the given zone`() {
+        val seoul = kotlinx.datetime.TimeZone.of("Asia/Seoul")
+        val period = OutingPeriod(d(9, 25), d(9, 28), listOf(OutingPeriod.Part("외박", 4)))
+        // 2026-09-25 08:00 KST == 2026-09-24 23:00 UTC
+        assertEquals(kotlinx.datetime.Instant.parse("2026-09-24T23:00:00Z"), OutingPeriodCalculator.departureAt(period, seoul))
+    }
 }

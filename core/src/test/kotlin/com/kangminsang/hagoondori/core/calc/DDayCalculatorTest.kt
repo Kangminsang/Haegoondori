@@ -1,6 +1,9 @@
 package com.kangminsang.hagoondori.core.calc
 
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -44,5 +47,52 @@ class DDayCalculatorTest {
         val discharge = LocalDate(2027, 1, 1)
         val promotion = LocalDate(2026, 1, 1) // 정확히 중간
         assertEquals(50.0, DDayCalculator.promotionProgress(enlistment, discharge, promotion))
+    }
+
+    private val seoul = TimeZone.of("Asia/Seoul")
+
+    @Test
+    fun `liveServiceProgress equals serviceProgress at midnight`() {
+        val enlistment = LocalDate(2025, 1, 1)
+        val discharge = LocalDate(2027, 1, 1)
+        val day = LocalDate(2026, 3, 15)
+        val live = DDayCalculator.liveServiceProgress(enlistment, discharge, day.atStartOfDayIn(seoul), seoul)
+        assertEquals(DDayCalculator.serviceProgress(enlistment, discharge, day), live, 1e-9)
+    }
+
+    @Test
+    fun `liveServiceProgress keeps rising within a day`() {
+        val enlistment = LocalDate(2025, 1, 1)
+        val discharge = LocalDate(2027, 1, 1)
+        val midnight = LocalDate(2026, 3, 15).atStartOfDayIn(seoul)
+        val noon = Instant.fromEpochMilliseconds(midnight.toEpochMilliseconds() + 12 * 3600 * 1000L)
+        val atMidnight = DDayCalculator.liveServiceProgress(enlistment, discharge, midnight, seoul)
+        val atNoon = DDayCalculator.liveServiceProgress(enlistment, discharge, noon, seoul)
+        // 하루는 전체 730일의 1/730 = 0.137%, 반나절은 그 절반
+        assertEquals(100.0 / 730 / 2, atNoon - atMidnight, 1e-9)
+    }
+
+    @Test
+    fun `liveServiceProgress clamps before enlistment and after discharge`() {
+        val enlistment = LocalDate(2025, 1, 1)
+        val discharge = LocalDate(2027, 1, 1)
+        assertEquals(0.0, DDayCalculator.liveServiceProgress(enlistment, discharge, LocalDate(2024, 6, 1).atStartOfDayIn(seoul), seoul))
+        assertEquals(100.0, DDayCalculator.liveServiceProgress(enlistment, discharge, LocalDate(2028, 1, 1).atStartOfDayIn(seoul), seoul))
+    }
+
+    @Test
+    fun `remainingMillis counts down to discharge midnight and stops at zero`() {
+        val discharge = LocalDate(2027, 1, 1)
+        val dayBefore = LocalDate(2026, 12, 31).atStartOfDayIn(seoul)
+        assertEquals(24 * 3600 * 1000L, DDayCalculator.remainingMillis(discharge, dayBefore, seoul))
+        assertEquals(0L, DDayCalculator.remainingMillis(discharge, LocalDate(2027, 2, 1).atStartOfDayIn(seoul), seoul))
+    }
+
+    @Test
+    fun `elapsedMillis counts up from enlistment midnight and is zero before enlistment`() {
+        val enlistment = LocalDate(2026, 1, 1)
+        val dayAfter = LocalDate(2026, 1, 2).atStartOfDayIn(seoul)
+        assertEquals(24 * 3600 * 1000L, DDayCalculator.elapsedMillis(enlistment, dayAfter, seoul))
+        assertEquals(0L, DDayCalculator.elapsedMillis(enlistment, LocalDate(2025, 12, 1).atStartOfDayIn(seoul), seoul))
     }
 }

@@ -8,6 +8,7 @@ import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.Holiday
+import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
@@ -60,7 +61,7 @@ class CalendarViewModel @Inject constructor(
         yearMonth,
         selectedDate,
         combine(eventRepository.observeAll(), dutyRepository.observeAll(), holidayRepository.observeAll(), ::EventDutyHoliday),
-        combine(leaveRepository.observeAllUsages(), combatRestRepository.observeUsages(), ::LeaveCombatRest),
+        combine(leaveRepository.observeAllUsages(), leaveRepository.observeTypes(), combatRestRepository.observeUsages(), ::LeaveCombatRest),
         combine(overnightRepository.observeRecords(), passRepository.observeAll(), ::OvernightPass),
     ) { yearMonthValue, selected, eventDutyHoliday, leaveCombatRest, overnightPass ->
         val (year, month) = yearMonthValue
@@ -77,7 +78,11 @@ class CalendarViewModel @Inject constructor(
     )
 
     private data class EventDutyHoliday(val events: List<Event>, val duties: List<DutyAssignment>, val holidays: List<Holiday>)
-    private data class LeaveCombatRest(val leaveUsages: List<LeaveUsage>, val combatRestUsages: List<CombatRestUsage>)
+    private data class LeaveCombatRest(
+        val leaveUsages: List<LeaveUsage>,
+        val leaveTypes: List<LeaveType>,
+        val combatRestUsages: List<CombatRestUsage>,
+    )
     private data class OvernightPass(val overnightRecords: List<OvernightRecord>, val passRecords: List<PassRecord>)
 
     private fun build(
@@ -89,12 +94,19 @@ class CalendarViewModel @Inject constructor(
         op: OvernightPass,
     ): CalendarUiState {
         val gridDates = CalendarGridBuilder.buildGrid(year, month)
+        val typeNames = lcr.leaveTypes.associate { it.id to it.name }
         val days = gridDates.map { date ->
             CalendarDayInfo(
                 date = date,
                 isCurrentMonth = date.year == year && date.monthNumber == month,
                 isHoliday = HolidayJudge.isHoliday(date, edh.holidays),
-                hasLeave = lcr.leaveUsages.any { date in it.startDate..it.endDate },
+                leaveNames = lcr.leaveUsages
+                    .filter { date in it.startDate..it.endDate }
+                    .map { usage ->
+                        val name = typeNames[usage.leaveTypeId] ?: "휴가"
+                        usage.label?.takeIf { it.isNotBlank() }?.let { "$name ($it)" } ?: name
+                    }
+                    .distinct(),
                 hasCombatRest = lcr.combatRestUsages.any { date in it.startDate..it.endDate },
                 hasOvernight = op.overnightRecords.any { date in it.date..it.endDate },
                 hasPass = op.passRecords.any { it.date == date },

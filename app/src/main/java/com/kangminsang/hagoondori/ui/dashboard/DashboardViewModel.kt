@@ -7,6 +7,7 @@ import com.kangminsang.hagoondori.core.calc.DDayCalculator
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
 import com.kangminsang.hagoondori.core.calc.OutingPeriodCalculator
 import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
+import com.kangminsang.hagoondori.core.calc.ServiceScheduleCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.LeaveGrant
@@ -82,8 +83,21 @@ class DashboardViewModel @Inject constructor(
     ): DashboardUiState {
         val today = AppClock.today()
 
+        val overnightSchedule = profile?.firstOvernightDate?.let { first ->
+            OvernightScheduleCalculator.buildSchedule(
+                firstOvernightDate = first,
+                cycleWeeks = profile.overnightCycleWeeks,
+                records = overnightData.records,
+                forfeitures = overnightData.forfeitures,
+            )
+        }
+
         val leaveSummaries = leaveData.types.map { type ->
-            val s = LeaveCalculator.summarize(type, leaveData.grants, leaveData.usages, AppClock.today())
+            val s = LeaveCalculator.summarize(
+                type, leaveData.grants, leaveData.usages, AppClock.today(),
+                overnightRecords = overnightData.records,
+                nextOvernightDate = overnightSchedule?.nextScheduledDate,
+            )
             LeaveTypeSummary(
                 type = type,
                 granted = s.granted,
@@ -104,15 +118,6 @@ class DashboardViewModel @Inject constructor(
             restUsages = combatRestData.usages,
         )
 
-        val overnightSchedule = profile?.firstOvernightDate?.let { first ->
-            OvernightScheduleCalculator.buildSchedule(
-                firstOvernightDate = first,
-                cycleWeeks = profile.overnightCycleWeeks,
-                records = overnightData.records,
-                forfeitures = overnightData.forfeitures,
-            )
-        }
-
         val nextOuting = OutingPeriodCalculator.next(
             today = today,
             leaveUsages = leaveData.usages,
@@ -130,9 +135,23 @@ class DashboardViewModel @Inject constructor(
             serviceProgressPercent = profile
                 ?.let { DDayCalculator.serviceProgress(it.enlistmentDate, it.dischargeDate, today) }
                 ?: 0.0,
-            promotionDDay = profile?.promotionDate?.let { DDayCalculator.dDay(today, it) },
-            promotionProgressPercent = profile?.promotionDate?.let { promotionDate ->
-                DDayCalculator.promotionProgress(profile.enlistmentDate, profile.dischargeDate, promotionDate)
+            promotionMarkers = profile?.promotionDates?.entries.orEmpty().map { (rank, date) ->
+                PromotionMarker(
+                    label = rank.label,
+                    progressPercent = DDayCalculator.promotionProgress(profile!!.enlistmentDate, profile.dischargeDate, date),
+                    passed = date < today,
+                )
+            },
+            nextPromotion = profile?.let {
+                ServiceScheduleCalculator.nextPromotion(it.promotionDates, today)?.let { (rank, date) ->
+                    NextPromotion(
+                        label = rank.label,
+                        dDay = DDayCalculator.dDay(today, date),
+                        progressPercent = ServiceScheduleCalculator.progressToNextPromotion(
+                            it.enlistmentDate, it.promotionDates, date, today,
+                        ),
+                    )
+                }
             },
             leaveSummaries = leaveSummaries,
             combatRestSummary = combatRestSummary,
