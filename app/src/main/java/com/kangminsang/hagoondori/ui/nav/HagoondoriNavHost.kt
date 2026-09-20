@@ -1,13 +1,21 @@
 package com.kangminsang.hagoondori.ui.nav
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -17,16 +25,17 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kangminsang.hagoondori.ui.calendar.CalendarScreen
 import com.kangminsang.hagoondori.ui.dashboard.DashboardScreen
-import com.kangminsang.hagoondori.ui.duty.DutyBulkInputScreen
 import com.kangminsang.hagoondori.ui.leave.LeaveManagementScreen
 import com.kangminsang.hagoondori.ui.settings.SettingsScreen
 
 /**
- * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 5개로 구성된다.
+ * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 4개로 구성된다.
  */
 @Composable
 fun HagoondoriNavHost() {
     val navController = rememberNavController()
+    // 대시보드의 동기화 배너에서 설정으로 넘어올 때 "장치 연동" 카드까지 스크롤하라는 요청.
+    var scrollToDeviceSection by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = { HagoondoriBottomBar(navController) },
@@ -39,6 +48,7 @@ fun HagoondoriNavHost() {
             composable(HagoondoriDestination.Dashboard.route) {
                 DashboardScreen(
                     onNavigateToSync = {
+                        scrollToDeviceSection = true
                         navController.navigate(HagoondoriDestination.Settings.route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
@@ -49,8 +59,12 @@ fun HagoondoriNavHost() {
             }
             composable(HagoondoriDestination.Calendar.route) { CalendarScreen() }
             composable(HagoondoriDestination.Leave.route) { LeaveManagementScreen() }
-            composable(HagoondoriDestination.Duty.route) { DutyBulkInputScreen() }
-            composable(HagoondoriDestination.Settings.route) { SettingsScreen() }
+            composable(HagoondoriDestination.Settings.route) {
+                SettingsScreen(
+                    scrollToDeviceSection = scrollToDeviceSection,
+                    onScrollHandled = { scrollToDeviceSection = false },
+                )
+            }
         }
     }
 }
@@ -60,7 +74,9 @@ private fun HagoondoriBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    NavigationBar {
+    Column {
+    HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outline)
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         HagoondoriDestination.entries.forEach { destination ->
             NavigationBarItem(
                 selected = currentRoute == destination.route,
@@ -77,7 +93,15 @@ private fun HagoondoriBottomBar(navController: NavHostController) {
                 },
                 icon = { Icon(destination.icon, contentDescription = destination.label) },
                 label = { Text(destination.label) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    indicatorColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                ),
             )
         }
+    }
     }
 }

@@ -35,6 +35,15 @@ class DeviceStorageAccess @Inject constructor(
         prefs.edit { putString(KEY_TREE_URI, uri.toString()) }
     }
 
+    /**
+     * 저장된 폴더에 대한 쓰기 권한을 시스템이 아직 갖고 있는지. USB 장치를 뽑았다 다시 꽂으면 안드로이드가
+     * 이동식 볼륨에 대한 영구 권한을 회수하므로, uri 문자열이 저장돼 있어도 이 값은 false가 될 수 있다.
+     */
+    fun hasPersistedWritePermission(): Boolean {
+        val saved = savedTreeUri ?: return false
+        return context.contentResolver.persistedUriPermissions.any { it.uri == saved && it.isWritePermission }
+    }
+
     fun clear() {
         prefs.edit { remove(KEY_TREE_URI) }
     }
