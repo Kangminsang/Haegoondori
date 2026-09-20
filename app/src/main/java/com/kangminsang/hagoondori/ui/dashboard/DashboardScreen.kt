@@ -66,11 +66,11 @@ fun DashboardScreen(
                 return@LazyColumn
             }
 
-            item { ServiceProgressCard(uiState, modifier = Modifier.padding(16.dp)) }
-            item { LeaveSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp)) }
-            item { CombatRestSummaryCard(uiState, modifier = Modifier.padding(16.dp)) }
-            item { OvernightSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp)) }
-            item { PassSummaryCard(uiState, modifier = Modifier.padding(16.dp)) }
+            item { ServiceProgressCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { LeaveSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { CombatRestSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { OvernightSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { PassSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
         }
     }
 }

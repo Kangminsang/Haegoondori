@@ -46,6 +46,7 @@ fun LeaveManagementScreen(
                 0 -> LeaveTab(
                     uiState = uiState,
                     onAddGrant = viewModel::addLeaveGrant,
+                    onMoveType = viewModel::moveLeaveType,
                     onDeleteGrant = viewModel::deleteLeaveGrant,
                     onAddUsage = viewModel::addLeaveUsage,
                     onDeleteUsage = viewModel::deleteLeaveUsage,

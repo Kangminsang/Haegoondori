@@ -40,6 +40,11 @@ class LeaveRepository @Inject constructor(
         syncStateRepository.markChanged()
     }
 
+    /** 휴가 종류 표시 순서를 [orderedTypeIds] 순서대로 다시 매긴다. 장치 페이로드와 무관해 동기화 대기 건수는 올리지 않는다. */
+    suspend fun reorderTypes(orderedTypeIds: List<String>) {
+        orderedTypeIds.forEachIndexed { index, id -> dao.updateTypeSortOrder(id, index) }
+    }
+
     suspend fun deleteType(type: LeaveType) {
         dao.deleteType(type.toEntity())
         syncStateRepository.markChanged()
