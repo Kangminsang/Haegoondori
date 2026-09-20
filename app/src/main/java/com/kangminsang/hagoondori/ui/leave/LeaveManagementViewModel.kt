@@ -12,7 +12,6 @@ import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
-import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
@@ -24,6 +23,7 @@ import com.kangminsang.hagoondori.data.repository.LeaveRepository
 import com.kangminsang.hagoondori.data.repository.OvernightRepository
 import com.kangminsang.hagoondori.data.repository.PassRepository
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
+import com.kangminsang.hagoondori.util.AppClock
 import com.kangminsang.hagoondori.ui.dashboard.LeaveTypeSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -73,11 +73,14 @@ class LeaveManagementViewModel @Inject constructor(
         passHoliday: PassHolidayData,
     ): LeaveManagementUiState {
         val leaveSummaries = leaveData.types.map { type ->
+            val s = LeaveCalculator.summarize(type, leaveData.grants, leaveData.usages, AppClock.today())
             LeaveTypeSummary(
                 type = type,
-                granted = LeaveCalculator.cappedGranted(type, leaveData.grants),
-                used = LeaveCalculator.totalUsed(type.id, leaveData.usages),
-                remaining = LeaveCalculator.remaining(type, leaveData.grants, leaveData.usages),
+                granted = s.granted,
+                used = s.used,
+                expired = s.expired,
+                remaining = s.remaining,
+                grantStatuses = s.grants,
                 remainingCapCapacity = LeaveCalculator.remainingCapCapacity(type, leaveData.grants),
             )
         }
@@ -129,12 +132,12 @@ class LeaveManagementViewModel @Inject constructor(
 
     // ---- 휴가 ----
 
-    fun addLeaveType(name: String, cap: Int?, overflowBehavior: OverflowBehavior) {
-        viewModelScope.launch { leaveRepository.addType(name, cap, overflowBehavior) }
+    fun addLeaveGrant(leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?, expiryDate: LocalDate?) {
+        viewModelScope.launch { leaveRepository.addGrant(leaveTypeId, days, grantedDate, reason, expiryDate) }
     }
 
-    fun addLeaveGrant(leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?) {
-        viewModelScope.launch { leaveRepository.addGrant(leaveTypeId, days, grantedDate, reason) }
+    fun deleteLeaveGrant(grant: LeaveGrant) {
+        viewModelScope.launch { leaveRepository.deleteGrant(grant) }
     }
 
     fun addLeaveUsage(leaveTypeId: String, startDate: LocalDate, endDate: LocalDate, label: String?) {
@@ -161,8 +164,8 @@ class LeaveManagementViewModel @Inject constructor(
 
     // ---- 외박 ----
 
-    fun addOvernightRecord(date: LocalDate, memo: String?) {
-        viewModelScope.launch { overnightRepository.addRecord(date, memo) }
+    fun addOvernightRecord(date: LocalDate, endDate: LocalDate, memo: String?) {
+        viewModelScope.launch { overnightRepository.addRecord(date, memo, endDate) }
     }
 
     /**

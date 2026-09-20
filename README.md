@@ -53,22 +53,19 @@ platform-tools, `platforms;android-35`, `build-tools;35.0.0`)를 받아 `./gradl
    업그레이드를 제안하면 받아들여도 무방하다 - `gradle/libs.versions.toml`의
    버전은 Google Maven 저장소에 접근할 수 없는 환경에서 작성되어 실제 다운로드로
    검증하지 못했다.)
-2. (선택) 공휴일 자동 조회를 쓰려면 저장소 루트에 `local.properties`를 만들고
-   아래 줄을 추가한다 - 파일은 `.gitignore`에 걸려 있어 커밋되지 않는다.
-   ```properties
-   holiday.api.key=공공데이터포털에서_발급받은_디코딩_서비스키
-   ```
-   키가 없어도 앱은 완전히 동작한다 - 공휴일은 내장 데이터(고정 양력 공휴일)와
-   수동 입력으로 대체된다(스펙 4.14절 확보 우선순위).
+2. (선택) 공휴일 자동 조회를 쓰려면 앱 실행 후 설정 화면의 "공공데이터포털 서비스키"에
+   키를 입력한다. 키는 빌드(APK)나 소스에 들어가지 않고 이 기기의 앱 전용 저장소에만
+   보관된다. 키가 없어도 앱은 완전히 동작한다 - 공휴일은 내장 데이터(고정 양력 공휴일)와
+   수동 입력으로 대체된다(스펙 4.14절 확보 우선순위). 키가 있으면 앱을 켤 때 7일마다
+   자동으로 갱신한다.
 3. `app` 모듈을 실행한다. minSdk 33(Android 13) 이상 기기/에뮬레이터가 필요하다.
 
 ### 3. 장치 연동 검증 (실기기 필요, 스펙 8.3절)
 
 USB MSC 인식·SAF 접근 흐름(`RealExportAdapter`, `export/DeviceStorageAccess.kt`)은
 기기·OS·장치 펌웨어에 따라 동작이 달라질 수 있어 반드시 실기기로 검증해야 한다.
-장치 없이 먼저 확인하고 싶다면 설정 화면 → "장치 미리보기"에서 800×480 렌더링
-결과를 보거나, "페이로드 파일로 저장"으로 `calendar.txt`를 앱 전용 저장소에
-남겨 내용을 직접 확인할 수 있다(`FakeExportAdapter`).
+장치 화면 미리보기(F16)는 실사용에 필요하지 않아 제거했다. 페이로드 내용은
+`FakeExportAdapter`가 앱 전용 저장소에 남기는 `calendar.txt`로 확인할 수 있다.
 
 ## 이 개발 환경에서 검증한 것 / 못한 것
 
@@ -79,8 +76,26 @@ USB MSC 인식·SAF 접근 흐름(`RealExportAdapter`, `export/DeviceStorageAcce
 | `app` 모듈 컴파일(Compose/Room/Hilt KSP, `assembleDebug`) | ✅ Android SDK를 받아 실제로 빌드 성공까지 확인함 (컴파일 오류 2건 수정) |
 | `app` 모듈의 에뮬레이터 실행 및 UI 동작 | ✅ API 35 x86_64 에뮬레이터(adb)에서 실제로 확인함 - 아래 "에뮬레이터에서 확인한 것" 참고 |
 | 공공데이터포털 특일정보 API 실호출 | ❌ 실제 스키마 미확인 - `HolidayApiPayloadParser`가 알려진 문서 기반으로 방어적으로 작성됨 |
-| USB MSC 인식 및 SAF `calendar.txt` 쓰기 | ❌ 실기기 필요 (에뮬레이터는 USB／실제 SAF 트리를 흉내낼 수 없음) |
-| 장치(e-ink) 실물에서의 800×480 렌더링 | ❌ 실기기 필요 (앱 쪽 미리보기는 근사치이며, 에뮬레이터 화면에서 렌더링 자체는 확인함) |
+| 전송 범위 계산(`TransmissionRange`), 장치 검증 규칙 미러(`PayloadVerifier`: 빈 파일·절단·CRC 불일치) | ✅ `core` 단위 테스트로 확인 |
+| `calendar.txt` 전송 명세 v5 반영: `G`(외출) 레코드, 전송 범위(동기화 달 1일 ~ +180일이 속한 달 말일), 16,000바이트 상한 | ✅ 명세 부록 예시 파일과 바이트 단위로 일치(`Z|531|B78A4E13`)하는 골든 테스트 |
+| USB MSC 인식 및 SAF `calendar.txt` 쓰기, 쓴 뒤 재읽기 검증, 장치 폴더(루트) 선택 검증(`DeviceFolderCheck`) | ❌ 실기기 필요 (컴파일만 확인. 에뮬레이터는 USB／실제 SAF 트리를 흉내낼 수 없음) |
+| `device_filter.xml`의 USB vendor-id(0x2E8A) | ❌ product-id는 실기기에서 확인 필요 |
+| 장치(e-ink) 실물에서의 800×480 렌더링 | ❌ 실기기 필요 |
+
+### 사용 후 반영한 변경 (실기기 사용 피드백)
+
+- 휴가 종류(정기/포상/위로)는 DB를 열 때 미리 채워 두고, 종류 직접 추가 화면은 제거했다.
+- 장치 미리보기 화면(F16)을 제거했다.
+- 외박은 시작~종료일 기간으로 기록하며(DB 버전 2, `overnight_record.endDate`), 달력과
+  장치 페이로드(`L` 레코드, 라벨 `외박`)에 휴가처럼 기간으로 표시된다. 6주 차수 매칭은
+  시작일만 쓰고 휴가 잔여 일수는 차감하지 않는다.
+- 외출은 달력에서 날짜를 골라 바로 기록/삭제할 수 있고, 장치에는 `G|날짜`로 전달된다.
+  근무입력 탭에서도 여러 날짜를 골라 외출을 일괄 기록할 수 있다.
+- 외박은 주(차수) 단위로만 센다. 며칠 지연/선행 같은 일 단위 추적은 화면에서 뺐다
+  (차수 매칭 계산 자체는 그대로).
+- 포상/위로휴가는 부여 내역(날짜·일수·내용)을 카드에서 볼 수 있고, 부여마다 유효 기간(선택)을
+  둘 수 있다. 사용은 유효 기간이 먼저 끝나는 부여부터 차감하고, 기간이 지난 미사용분은
+  소멸로 표시된다(DB 버전 4, `LeaveCalculator.summarize`).
 
 ### 에뮬레이터에서 확인한 것 (2026-09-19)
 
@@ -122,9 +137,7 @@ Android SDK로 API 35(`google_apis`, x86_64) 에뮬레이터(`hagoondori_test` A
   ViewModel. ViewModel이 Repository의 Flow를 모아 `core.calc`에 넘기고 결과만
   노출한다 - 계산 로직 자체는 UI 계층에 없다.
 - **`app/export`** - `SnapshotBuilder`(여러 Repository → `CalendarSnapshot`),
-  `FakeExportAdapter`(개발/미리보기용), `RealExportAdapter`(실제 USB+SAF).
-- **`app/preview`** - 장치 미리보기(F16) 렌더러. 실제 장치 펌웨어의 근사치일 뿐,
-  정확한 픽셀 배치는 임베디드 쪽 구현이 최종 결정한다.
+  `FakeExportAdapter`(개발용), `RealExportAdapter`(실제 USB+SAF).
 
 ## 라이선스 / 배포
 

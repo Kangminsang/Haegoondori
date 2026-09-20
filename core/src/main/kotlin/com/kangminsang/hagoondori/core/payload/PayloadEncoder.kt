@@ -5,9 +5,9 @@ import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.Holiday
-import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.UserProfile
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -16,7 +16,7 @@ import kotlinx.datetime.toLocalDateTime
  * [CalendarSnapshot]을 장치 전송 페이로드(`calendar.txt`)로 인코딩한다 (스펙 7.2/7.3절).
  *
  * 형식: 파이프(`|`) 구분 줄 단위 텍스트, UTF-8, **LF** 개행(CRLF 아님). 각 줄의 첫
- * 필드가 레코드 종류(`V/M/P/O/H/E/L/C/D/Z`)를 나타낸다.
+ * 필드가 레코드 종류(`V/M/P/O/H/E/L/C/G/D/Z`)를 나타낸다.
  *
  * 파일을 실제로 어디에 어떻게 쓰는지(USB, SAF, 로컬 파일 등)는 이 클래스의 관심사가
  * 아니다 — 여기서는 순수하게 문자열만 만든다. 파일명(`calendar.txt`)을 정하고 실제
@@ -25,6 +25,7 @@ import kotlinx.datetime.toLocalDateTime
 object PayloadEncoder {
 
     private const val PAYLOAD_VERSION = 1
+    private const val OVERNIGHT_LABEL = "외박"
     private val KST = TimeZone.of("Asia/Seoul")
 
     /**
@@ -53,11 +54,19 @@ object PayloadEncoder {
             .sortedBy { it.startDate }
             .forEach { lines += encodeEventLine(it) }
 
+        // 외박은 장치에서 휴가와 같은 기간 바로 그려지므로 L 레코드로 함께 보낸다.
+        // 휴가는 종류를 두 글자로 줄여 라벨로 보낸다(포상/위로/연가). 종류를 알 수 없으면 사용 기록의 이름을 쓴다.
+        val typeNames = snapshot.leaveTypes.associate { it.id to it.name }
+        val leavePeriods = snapshot.leaveUsages.map { usage ->
+            val label = typeNames[usage.leaveTypeId]?.let(LeaveDeviceLabel::forTypeName) ?: usage.label.orEmpty()
+            LeavePeriod(usage.startDate, usage.endDate, label)
+        } +
+            snapshot.overnightRecords.map { LeavePeriod(it.date, it.endDate, OVERNIGHT_LABEL) }
         DateRangeFilter.filterOverlapping(
-            snapshot.leaveUsages, snapshot.rangeStart, snapshot.rangeEnd,
-            start = { it.startDate }, end = { it.endDate },
+            leavePeriods, snapshot.rangeStart, snapshot.rangeEnd,
+            start = { it.start }, end = { it.end },
         )
-            .sortedBy { it.startDate }
+            .sortedBy { it.start }
             .forEach { lines += encodeLeaveLine(it) }
 
         DateRangeFilter.filterOverlapping(
@@ -66,6 +75,13 @@ object PayloadEncoder {
         )
             .sortedBy { it.startDate }
             .forEach { lines += encodeCombatRestLine(it) }
+
+        // 외출: 하루에 한 줄(G). 같은 날 여러 번 기록돼도 한 줄만 보낸다.
+        DateRangeFilter.filterWithin(snapshot.passRecords, snapshot.rangeStart, snapshot.rangeEnd) { it.date }
+            .map { it.date }
+            .distinct()
+            .sorted()
+            .forEach { lines += "G|$it" }
 
         DateRangeFilter.filterWithin(snapshot.dutyAssignments, snapshot.rangeStart, snapshot.rangeEnd) { it.date }
             .sortedWith(compareBy({ it.date }, { it.type.name }))
@@ -101,10 +117,12 @@ object PayloadEncoder {
         return "E|${event.startDate}|$end|${sanitizeField(event.title, fieldName = "일정 제목")}|$important"
     }
 
-    private fun encodeLeaveLine(usage: LeaveUsage): String {
-        val label = sanitizeField(usage.label.orEmpty(), fieldName = "휴가 라벨")
-        return "L|${usage.startDate}|${usage.endDate}|$label"
+    private fun encodeLeaveLine(period: LeavePeriod): String {
+        val label = sanitizeField(period.label, fieldName = "휴가 라벨")
+        return "L|${period.start}|${period.end}|$label"
     }
+
+    private data class LeavePeriod(val start: LocalDate, val end: LocalDate, val label: String)
 
     private fun encodeCombatRestLine(usage: CombatRestUsage): String =
         "C|${usage.startDate}|${usage.endDate}"

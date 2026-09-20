@@ -4,7 +4,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,30 +28,36 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kangminsang.hagoondori.core.export.ExportResult
+import com.kangminsang.hagoondori.export.DeviceFolderCheck
 import com.kangminsang.hagoondori.ui.common.SyncStatusBanner
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.coroutines.launch
 
 /**
- * ⑤ 설정 (스펙 5.1/5.2절, F1/F15/F16/F17) - 복무 정보, 규정 수치, 공휴일 갱신,
- * 장치 미리보기 진입, 동기화 실행이 모두 이 화면에서 이루어진다.
+ * ⑤ 설정 (스펙 5.1/5.2절, F1/F15/F17) - 복무 정보, 규정 수치, 공휴일 갱신,
+ * 동기화 실행이 모두 이 화면에서 이루어진다.
  */
 @Composable
 fun SettingsScreen(
-    onOpenDevicePreview: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var hasHolidayApiKey by remember { mutableStateOf(viewModel.hasHolidayApiKey()) }
     var isFolderSelected by remember { mutableStateOf(viewModel.isDeviceFolderSelected()) }
 
     val openTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
-            viewModel.onDeviceFolderSelected(uri)
-            isFolderSelected = true
-            scope.launch { snackbarHostState.showSnackbar("장치 폴더를 선택했습니다") }
+            when (val check = viewModel.onDeviceFolderSelected(uri)) {
+                is DeviceFolderCheck.Result.Ok -> {
+                    isFolderSelected = true
+                    scope.launch { snackbarHostState.showSnackbar("장치 폴더를 선택했습니다") }
+                }
+                is DeviceFolderCheck.Result.Rejected ->
+                    scope.launch { snackbarHostState.showSnackbar(check.message) }
+            }
         }
     }
 
@@ -80,6 +85,9 @@ fun SettingsScreen(
             HolidaySection(
                 holidays = uiState.holidays,
                 onRefresh = viewModel::refreshHolidays,
+                hasApiKey = hasHolidayApiKey,
+                onSaveApiKey = { key -> viewModel.saveHolidayApiKey(key); hasHolidayApiKey = true },
+                onClearApiKey = { viewModel.clearHolidayApiKey(); hasHolidayApiKey = false },
                 onAddManual = viewModel::addManualHoliday,
                 onDelete = viewModel::deleteHoliday,
                 modifier = Modifier.fillMaxWidth(),
@@ -93,11 +101,8 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { openTreeLauncher.launch(null) }) {
-                            Text(if (isFolderSelected) "장치 폴더 다시 선택" else "장치 폴더 선택")
-                        }
-                        Button(onClick = onOpenDevicePreview) { Text("장치 미리보기") }
+                    OutlinedButton(onClick = { openTreeLauncher.launch(null) }) {
+                        Text(if (isFolderSelected) "장치 폴더 다시 선택" else "장치 폴더 선택")
                     }
                     Button(
                         enabled = isFolderSelected,

@@ -2,6 +2,8 @@ package com.kangminsang.hagoondori.ui.calendar
 
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
+import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.PassType
 import kotlinx.datetime.LocalDate
 
 /** 격자 위 날짜 하나의 표시 정보. */
@@ -13,6 +15,10 @@ data class CalendarDayInfo(
     val hasCombatRest: Boolean,
     val hasOvernight: Boolean,
     val hasPass: Boolean,
+    /** 이 날짜의 외출 기록(삭제용). */
+    val passRecords: List<PassRecord>,
+    /** 이 날짜에 외출을 기록할 때의 자동 판정(평일/휴일). */
+    val autoPassType: PassType,
     val events: List<Event>,
     val dutyAssignments: List<DutyAssignment>,
 ) {

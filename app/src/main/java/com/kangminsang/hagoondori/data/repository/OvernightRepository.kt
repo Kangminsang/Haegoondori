@@ -25,8 +25,8 @@ class OvernightRepository @Inject constructor(
     fun observeRecords(): Flow<List<OvernightRecord>> =
         dao.observeRecords().map { list -> list.map { it.toCore() } }
 
-    suspend fun addRecord(date: LocalDate, memo: String?): OvernightRecord {
-        val record = OvernightRecord(IdGenerator.newId(), date, memo)
+    suspend fun addRecord(date: LocalDate, memo: String?, endDate: LocalDate = date): OvernightRecord {
+        val record = OvernightRecord(IdGenerator.newId(), date, memo, endDate)
         dao.upsertRecord(record.toEntity())
         syncStateRepository.markChanged()
         return record

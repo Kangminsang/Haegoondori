@@ -6,7 +6,11 @@ import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.DutyType
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.Holiday
+import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OvernightRecord
+import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.core.model.UserProfile
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -170,6 +174,129 @@ class PayloadEncoderTest {
             ),
         )
         assertTrue(PayloadEncoder.encode(snapshot).lines().any { it.startsWith("L|") })
+    }
+
+    @Test
+    fun `overnight records are encoded as L lines labeled overnight, merged with leave in date order`() {
+        val snapshot = minimalSnapshot().copy(
+            leaveUsages = listOf(LeaveUsage("l1", "annual", LocalDate(2026, 9, 10), LocalDate(2026, 9, 12), "정기휴가")),
+            overnightRecords = listOf(
+                OvernightRecord("o1", LocalDate(2026, 9, 13), endDate = LocalDate(2026, 9, 14)),
+                OvernightRecord("o0", LocalDate(2026, 9, 1)),
+            ),
+        )
+        val lLines = PayloadEncoder.encode(snapshot).lines().filter { it.startsWith("L|") }
+        assertEquals(
+            listOf("L|2026-09-01|2026-09-01|외박", "L|2026-09-10|2026-09-12|정기휴가", "L|2026-09-13|2026-09-14|외박"),
+            lLines,
+        )
+    }
+
+    @Test
+    fun `calendar txt spec v5 example file is reproduced byte for byte`() {
+        fun d(y: Int, m: Int, day: Int) = LocalDate(y, m, day)
+        val snapshot = CalendarSnapshot(
+            generatedAt = Instant.parse("2026-09-18T20:30:00Z"), // 2026-09-19 05:30 KST
+            rangeStart = d(2026, 9, 1),
+            rangeEnd = d(2027, 3, 31),
+            profile = UserProfile(
+                enlistmentDate = d(2026, 2, 9),
+                dischargeDate = d(2027, 10, 8),
+                promotionDate = d(2026, 11, 1),
+                firstOvernightDate = null,
+                wakeUpTime = LocalTime(5, 45),
+                dinnerTime = LocalTime(17, 30),
+                autoAddOffDuty = true,
+            ),
+            nextOvernightDate = d(2026, 9, 27),
+            holidays = listOf(
+                Holiday(d(2026, 9, 24), "추석"), Holiday(d(2026, 9, 25), "추석"), Holiday(d(2026, 9, 26), "추석"),
+                Holiday(d(2026, 10, 3), "개천절"), Holiday(d(2026, 10, 9), "한글날"),
+            ),
+            events = listOf(
+                Event("e1", "면회", d(2026, 9, 22), isImportant = true),
+                Event("e2", "진급 심사", d(2026, 9, 30)),
+                Event("e3", "정신전력 교육 평가", d(2026, 10, 5)),
+            ),
+            leaveUsages = listOf(LeaveUsage("l1", "regular", d(2026, 9, 24), d(2026, 9, 28), "정기휴가")),
+            combatRestUsages = listOf(CombatRestUsage("c1", d(2026, 9, 30), d(2026, 10, 1))),
+            passRecords = listOf(
+                PassRecord("g2", d(2026, 9, 15), PassType.WEEKDAY),
+                PassRecord("g1", d(2026, 9, 8), PassType.WEEKDAY),
+            ),
+            dutyAssignments = listOf(
+                DutyAssignment("d5", d(2026, 9, 23), DutyType.OFF_DUTY),
+                DutyAssignment("d4", d(2026, 9, 23), DutyType.MESS),
+                DutyAssignment("d3", d(2026, 9, 21), DutyType.DUTY),
+                DutyAssignment("d2", d(2026, 9, 20), DutyType.DUTY),
+                DutyAssignment("d1", d(2026, 9, 19), DutyType.OFF_DUTY),
+            ),
+        )
+
+        val expected = """
+            V|1
+            M|2026-09-19T05:30:00+09:00|2026-09-01|2027-03-31
+            P|2026-02-09|2027-10-08|2026-11-01|05:45|17:30
+            O|2026-09-27
+            H|2026-09-24|추석
+            H|2026-09-25|추석
+            H|2026-09-26|추석
+            H|2026-10-03|개천절
+            H|2026-10-09|한글날
+            E|2026-09-22|2026-09-22|면회|1
+            E|2026-09-30|2026-09-30|진급 심사|0
+            E|2026-10-05|2026-10-05|정신전력 교육 평가|0
+            L|2026-09-24|2026-09-28|정기휴가
+            C|2026-09-30|2026-10-01
+            G|2026-09-08
+            G|2026-09-15
+            D|2026-09-19|OFF_DUTY
+            D|2026-09-20|DUTY
+            D|2026-09-21|DUTY
+            D|2026-09-23|MESS
+            D|2026-09-23|OFF_DUTY
+            Z|531|B78A4E13
+
+        """.trimIndent()
+        assertEquals(expected, PayloadEncoder.encode(snapshot))
+    }
+
+    @Test
+    fun `leave periods are labeled with the two letter leave type`() {
+        val snapshot = minimalSnapshot().copy(
+            leaveTypes = listOf(
+                LeaveType("t-reg", "정기휴가", cap = null),
+                LeaveType("t-rew", "포상휴가", cap = 17),
+                LeaveType("t-con", "위로휴가", cap = null),
+            ),
+            leaveUsages = listOf(
+                LeaveUsage("u1", "t-reg", LocalDate(2026, 9, 1), LocalDate(2026, 9, 3), "내가 붙인 이름"),
+                LeaveUsage("u2", "t-rew", LocalDate(2026, 9, 10), LocalDate(2026, 9, 11)),
+                LeaveUsage("u3", "t-con", LocalDate(2026, 9, 20), LocalDate(2026, 9, 20)),
+                LeaveUsage("u4", "unknown", LocalDate(2026, 9, 25), LocalDate(2026, 9, 25), "직접"),
+            ),
+        )
+        val lLines = PayloadEncoder.encode(snapshot).lines().filter { it.startsWith("L|") }
+        assertEquals(
+            listOf(
+                "L|2026-09-01|2026-09-03|연가",
+                "L|2026-09-10|2026-09-11|포상",
+                "L|2026-09-20|2026-09-20|위로",
+                "L|2026-09-25|2026-09-25|직접",
+            ),
+            lLines,
+        )
+    }
+
+    @Test
+    fun `duplicate pass records on the same day produce one G line`() {
+        val snapshot = minimalSnapshot().copy(
+            passRecords = listOf(
+                PassRecord("a", LocalDate(2026, 9, 10), PassType.WEEKDAY),
+                PassRecord("b", LocalDate(2026, 9, 10), PassType.HOLIDAY),
+            ),
+        )
+        assertEquals(listOf("G|2026-09-10"), PayloadEncoder.encode(snapshot).lines().filter { it.startsWith("G|") })
     }
 
     // -----------------------------------------------------------------

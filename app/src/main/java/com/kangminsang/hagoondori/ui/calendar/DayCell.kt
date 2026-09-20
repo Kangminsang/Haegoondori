@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.kangminsang.hagoondori.ui.duty.dutyTypeShortLabel
 import com.kangminsang.hagoondori.ui.theme.CombatRestTint
 import com.kangminsang.hagoondori.ui.theme.LeaveTint
 import com.kangminsang.hagoondori.ui.theme.OvernightTint
@@ -51,7 +52,7 @@ fun DayCell(day: CalendarDayInfo, isSelected: Boolean, onClick: () -> Unit, modi
         Text(day.date.dayOfMonth.toString(), color = contentColor, style = MaterialTheme.typography.bodyMedium)
         if (day.dutyAssignments.isNotEmpty()) {
             Text(
-                day.dutyAssignments.first().type.name.take(1),
+                day.dutyAssignments.joinToString("") { dutyTypeShortLabel(it.type) },
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.tertiary,
             )

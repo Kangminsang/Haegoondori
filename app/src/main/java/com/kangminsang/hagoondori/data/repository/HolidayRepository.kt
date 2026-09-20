@@ -27,8 +27,12 @@ class HolidayRepository @Inject constructor(
     /** API 조회 결과나 내장 데이터를 캐시에 반영한다. 같은 날짜는 최신 정보로 덮어쓴다. */
     suspend fun upsertAll(holidays: List<Holiday>) {
         if (holidays.isEmpty()) return
+        // 내용이 실제로 바뀔 때만 "동기화 안 된 변경"으로 센다. 자동 갱신이 같은 데이터를 다시
+        // 받아올 때마다 배너가 뜨면 안 된다.
+        val existing = dao.getAll().map { it.toCore() }.toSet()
+        val changed = holidays.any { it !in existing }
         dao.upsertAll(holidays.map { it.toEntity() })
-        syncStateRepository.markChanged()
+        if (changed) syncStateRepository.markChanged()
     }
 
     /** 사용자 수동 입력(확보 우선순위의 최후 수단, 4.14절). */

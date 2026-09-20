@@ -3,6 +3,8 @@ package com.kangminsang.hagoondori.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kangminsang.hagoondori.data.local.dao.CombatRestDao
 import com.kangminsang.hagoondori.data.local.dao.DutyDao
 import com.kangminsang.hagoondori.data.local.dao.EventDao
@@ -47,7 +49,7 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
         HolidayEntity::class,
         SyncStateEntity::class,
     ],
-    version = 1,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -64,5 +66,58 @@ abstract class HagoondoriDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "hagoondori.db"
+
+        /**
+         * 휴가 종류 세 가지(정기/포상/위로)를 DB를 열 때마다 맞춰 둔다. 받을 수 있는 휴가가
+         * 사실상 이 셋뿐이라 종류를 직접 추가하는 화면을 두지 않는다. 정기휴가는 27일로
+         * 총량이 고정돼 부여 기록이 필요 없고(fixedDays), 포상휴가(상한 17일, 부여를 기록하며
+         * 상한 초과분은 전투휴무로 전환)와 위로휴가는 부여 기록의 합이 총량이다. 같은 이름의
+         * 종류가 이미 있으면 새로 만들지 않고 고정 일수만 맞춘다. 휴가 종류는 장치 페이로드에 들어가지 않아 동기화 대기 건수는
+         * 올리지 않는다. 포상 초과분의 전투휴무 전환은 스펙 3.2.2절.
+         */
+        val SEED_DEFAULT_LEAVE_TYPES = object : Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                listOf(
+                    LeaveSeed("leave-regular", "정기휴가", cap = null, fixedDays = 27),
+                    LeaveSeed("leave-reward", "포상휴가", cap = 17, fixedDays = null),
+                    LeaveSeed("leave-consolation", "위로휴가", cap = null, fixedDays = null),
+                ).forEach { seed ->
+                    val overflow = if (seed.cap != null) "CONVERT_TO_COMBAT_REST" else "NONE"
+                    db.execSQL(
+                        "INSERT INTO leave_type (id, name, cap, overflowBehavior, fixedDays) " +
+                            "SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM leave_type WHERE name = ?)",
+                        arrayOf<Any?>(seed.id, seed.name, seed.cap, overflow, seed.fixedDays, seed.name),
+                    )
+                    db.execSQL(
+                        "UPDATE leave_type SET fixedDays = ? WHERE name = ?",
+                        arrayOf<Any?>(seed.fixedDays, seed.name),
+                    )
+                }
+            }
+        }
+
+        private data class LeaveSeed(val id: String, val name: String, val cap: Int?, val fixedDays: Int?)
+
+        /** 부여에 유효 기간(`expiryDate`)을 둘 수 있게 컬럼을 추가한다. 기존 부여는 기한 없음. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE leave_grant ADD COLUMN expiryDate INTEGER")
+            }
+        }
+
+        /** 고정 총량 휴가(정기휴가)를 위해 컬럼을 추가한다. 값은 [SEED_DEFAULT_LEAVE_TYPES]가 채운다. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE leave_type ADD COLUMN fixedDays INTEGER")
+            }
+        }
+
+        /** 외박을 기간으로 기록하기 위해 `endDate`를 추가한다. 기존 기록은 하루짜리(시작일=종료일)로 유지된다. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE overnight_record ADD COLUMN endDate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE overnight_record SET endDate = date")
+            }
+        }
     }
 }

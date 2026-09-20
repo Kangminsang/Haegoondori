@@ -33,6 +33,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kangminsang.hagoondori.core.model.Event
+import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.PassType
+import com.kangminsang.hagoondori.ui.duty.dutyTypeLabel
 import com.kangminsang.hagoondori.core.validation.TitleValidation
 import com.kangminsang.hagoondori.core.validation.TitleValidator
 import com.kangminsang.hagoondori.ui.common.DateTextField
@@ -73,7 +76,12 @@ fun CalendarScreen(
 
             Divider(modifier = Modifier.padding(vertical = 16.dp))
 
-            SelectedDayDetail(uiState.selectedDayInfo, onDeleteEvent = viewModel::deleteEvent)
+            SelectedDayDetail(
+                uiState.selectedDayInfo,
+                onDeleteEvent = viewModel::deleteEvent,
+                onAddPass = viewModel::addPass,
+                onDeletePass = viewModel::deletePass,
+            )
 
             uiState.selectedDate?.let { selected ->
                 AddEventSection(
@@ -103,7 +111,12 @@ private fun MonthHeader(year: Int, month: Int, onPrevious: () -> Unit, onNext: (
 }
 
 @Composable
-private fun SelectedDayDetail(day: CalendarDayInfo?, onDeleteEvent: (Event) -> Unit) {
+private fun SelectedDayDetail(
+    day: CalendarDayInfo?,
+    onDeleteEvent: (Event) -> Unit,
+    onAddPass: (LocalDate, PassType) -> Unit,
+    onDeletePass: (PassRecord) -> Unit,
+) {
     if (day == null) {
         Text("날짜를 선택하면 상세 내용을 볼 수 있습니다", style = MaterialTheme.typography.bodyMedium)
         return
@@ -118,19 +131,34 @@ private fun SelectedDayDetail(day: CalendarDayInfo?, onDeleteEvent: (Event) -> U
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            return
         }
 
         if (day.hasLeave) DetailLine("휴가 사용일")
         if (day.hasCombatRest) DetailLine("전투휴무 사용일")
         if (day.hasOvernight) DetailLine("외박일")
-        if (day.hasPass) DetailLine("외출일")
-        day.dutyAssignments.forEach { DetailLine("근무: ${it.type.name}") }
+        day.passRecords.forEach { record ->
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "외출일 (${passTypeLabel(record.type)})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { onDeletePass(record) }) {
+                    Icon(Icons.Filled.Close, contentDescription = "외출 기록 삭제")
+                }
+            }
+        }
+        TextButton(onClick = { onAddPass(day.date, day.autoPassType) }) {
+            Text("+ 이 날 외출 기록 (${passTypeLabel(day.autoPassType)})")
+        }
+        day.dutyAssignments.forEach { DetailLine("근무: ${dutyTypeLabel(it.type)}") }
         day.events.forEach { event ->
             EventLine(event, onDelete = { onDeleteEvent(event) })
         }
     }
 }
+
+private fun passTypeLabel(type: PassType): String = if (type == PassType.WEEKDAY) "평일" else "휴일"
 
 @Composable
 private fun DetailLine(text: String) {

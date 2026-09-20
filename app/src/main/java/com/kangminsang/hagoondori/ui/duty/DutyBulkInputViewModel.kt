@@ -2,14 +2,17 @@ package com.kangminsang.hagoondori.ui.duty
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.DutyType
 import com.kangminsang.hagoondori.data.repository.DutyRepository
 import com.kangminsang.hagoondori.data.repository.HolidayRepository
+import com.kangminsang.hagoondori.data.repository.PassRepository
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
@@ -30,15 +33,35 @@ class DutyBulkInputViewModel @Inject constructor(
     private val dutyRepository: DutyRepository,
     private val profileRepository: ProfileRepository,
     private val holidayRepository: HolidayRepository,
+    private val passRepository: PassRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<DutyBulkInputUiState> = combine(
         profileRepository.observe(),
         holidayRepository.observeAll(),
         dutyRepository.observeAll(),
-    ) { profile, holidays, assignments ->
-        DutyBulkInputUiState(profile, holidays, assignments)
+        passRepository.observeAll(),
+    ) { profile, holidays, assignments, passes ->
+        DutyBulkInputUiState(profile, holidays, assignments, passes)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DutyBulkInputUiState())
+
+    /**
+     * [dates]를 외출로 일괄 저장한다. 평일/휴일은 날짜별로 자동 판정하고, 이미 외출이 기록된
+     * 날짜는 건너뛴다.
+     *
+     * @param onResult (저장된 건수, 건너뛴 건수)
+     */
+    fun submitPass(dates: Set<LocalDate>, onResult: (savedCount: Int, skippedCount: Int) -> Unit) {
+        viewModelScope.launch {
+            val holidays = holidayRepository.getAll()
+            val alreadyPassed = passRepository.observeAll().first().map { it.date }.toSet()
+            val targets = dates.filter { it !in alreadyPassed }
+            targets.forEach { date ->
+                passRepository.addRecord(date, PassCalculator.classifyType(date, holidays), null)
+            }
+            onResult(targets.size, dates.size - targets.size)
+        }
+    }
 
     /**
      * [dates]를 [type]으로 일괄 저장한다. 이미 있는 `(date, type)` 조합은 조용히

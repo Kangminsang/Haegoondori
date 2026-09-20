@@ -7,7 +7,9 @@ import com.kangminsang.hagoondori.core.export.ExportAdapter
 import com.kangminsang.hagoondori.core.export.ExportResult
 import com.kangminsang.hagoondori.core.export.FailureReason
 import com.kangminsang.hagoondori.core.payload.PayloadEncoder
+import com.kangminsang.hagoondori.core.payload.PayloadLimits
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
 import javax.inject.Inject
 
 /**
@@ -31,7 +33,9 @@ class RealExportAdapter @Inject constructor(
 
     override fun isDeviceConnected(): Boolean {
         val treeUri = deviceStorageAccess.savedTreeUri ?: return false
-        return runCatching { DocumentFile.fromTreeUri(context, treeUri)?.exists() == true }.getOrDefault(false)
+        return runCatching {
+            DocumentFile.fromTreeUri(context, treeUri)?.let { it.exists() && it.canWrite() } == true
+        }.getOrDefault(false)
     }
 
     override fun export(snapshot: CalendarSnapshot): ExportResult {
@@ -46,15 +50,22 @@ class RealExportAdapter @Inject constructor(
             return ExportResult.Failure(FailureReason.DEVICE_NOT_CONNECTED, "장치 저장소에 접근할 수 없습니다")
         }
 
-        return try {
-            val bytes = PayloadEncoder.encode(snapshot).toByteArray(Charsets.UTF_8)
+        val bytes = PayloadEncoder.encode(snapshot).toByteArray(Charsets.UTF_8)
+        if (bytes.size > PayloadLimits.MAX_BYTES) {
+            return ExportResult.Failure(
+                FailureReason.PAYLOAD_TOO_LARGE,
+                "페이로드가 ${bytes.size}바이트로 너무 큽니다 (한도 ${PayloadLimits.MAX_BYTES}바이트)",
+            )
+        }
 
-            // "새로 만들며(기존 내용 절단) 처음부터 쓴다"(7.3절) - 기존 파일을 지우고 새로 만든다.
-            treeDoc.findFile(CALENDAR_FILE_NAME)?.delete()
-            val newFile = treeDoc.createFile("text/plain", CALENDAR_FILE_NAME)
+        return try {
+            // 기존 파일은 삭제하지 않고 "wt"로 절단해 덮어쓴다(7.3절 "기존 내용 절단").
+            // 삭제 후 재생성하면 삭제만 성공하고 생성이 실패했을 때 파일이 통째로 사라진다.
+            val target = treeDoc.findFile(CALENDAR_FILE_NAME)
+                ?: treeDoc.createFile("text/plain", CALENDAR_FILE_NAME)
                 ?: return ExportResult.Failure(FailureReason.WRITE_FAILED, "calendar.txt 파일을 생성하지 못했습니다")
 
-            val outputStream = context.contentResolver.openOutputStream(newFile.uri, "wt")
+            val outputStream = context.contentResolver.openOutputStream(target.uri, "wt")
                 ?: return ExportResult.Failure(FailureReason.PERMISSION_DENIED, "파일을 쓰기 모드로 열 수 없습니다")
 
             outputStream.use { stream ->
@@ -62,9 +73,22 @@ class RealExportAdapter @Inject constructor(
                 stream.flush()
             }
 
+            // FAT는 원자적 쓰기를 보장하지 않아 중단되면 0바이트로 잘린다(펌웨어 스펙 2.3절).
+            // 다시 읽어 의도한 바이트와 정확히 같은지 확인한다(명세 v5 5절 3단계).
+            val written = context.contentResolver.openInputStream(target.uri)?.use { it.readBytes() }
+                ?: return ExportResult.Failure(FailureReason.WRITE_FAILED, "쓴 파일을 다시 읽지 못했습니다")
+            if (!written.contentEquals(bytes)) {
+                return ExportResult.Failure(
+                    FailureReason.WRITE_FAILED,
+                    "장치에 쓴 파일이 온전하지 않습니다. 케이블 상태를 확인하고 다시 시도해 주세요.",
+                )
+            }
+
             ExportResult.Success
         } catch (e: SecurityException) {
             ExportResult.Failure(FailureReason.PERMISSION_DENIED, e.message ?: "저장소 접근 권한이 없습니다")
+        } catch (e: IOException) {
+            ExportResult.Failure(FailureReason.WRITE_FAILED, e.message ?: "쓰기 중 오류가 발생했습니다 (케이블 분리 등)")
         } catch (e: Exception) {
             ExportResult.Failure(FailureReason.WRITE_FAILED, e.message ?: "쓰기 중 오류가 발생했습니다 (케이블 분리 등)")
         }
