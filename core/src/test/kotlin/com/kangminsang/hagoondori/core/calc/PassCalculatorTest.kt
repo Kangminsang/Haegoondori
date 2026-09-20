@@ -14,7 +14,6 @@ class PassCalculatorTest {
     private val profile = UserProfile(
         enlistmentDate = LocalDate(2025, 3, 3),
         dischargeDate = LocalDate(2026, 9, 2),
-        promotionDate = null,
         firstOvernightDate = null,
         wakeUpTime = LocalTime(5, 45),
         dinnerTime = LocalTime(17, 30),

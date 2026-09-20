@@ -11,6 +11,7 @@ import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PassType
+import com.kangminsang.hagoondori.core.model.PromotionDates
 import com.kangminsang.hagoondori.core.model.UserProfile
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -32,7 +33,7 @@ class PayloadEncoderTest {
     private fun baseProfile(promotionDate: LocalDate? = null) = UserProfile(
         enlistmentDate = LocalDate(2025, 3, 3),
         dischargeDate = LocalDate(2026, 9, 2),
-        promotionDate = promotionDate,
+        promotionDates = PromotionDates(corporal = promotionDate),
         firstOvernightDate = null,
         wakeUpTime = LocalTime(5, 45),
         dinnerTime = LocalTime(17, 30),
@@ -73,6 +74,27 @@ class PayloadEncoderTest {
         val payload = PayloadEncoder.encode(minimalSnapshot(baseProfile(promotionDate = LocalDate(2026, 10, 16))))
         val profileLine = payload.split("\n").first { it.startsWith("P|") }
         assertEquals("P|2025-03-03|2026-09-02|2026-10-16|05:45|17:30", profileLine)
+    }
+
+    @Test
+    fun `with several promotions only the nearest upcoming one is sent to the device`() {
+        // generatedAt = 2026-09-04 KST. 일병은 이미 지났고, 상병(10/1)과 병장(다음 해)이 남았다.
+        val profile = baseProfile().copy(
+            promotionDates = PromotionDates(
+                privateFirstClass = LocalDate(2026, 5, 1),
+                corporal = LocalDate(2026, 10, 1),
+                sergeant = LocalDate(2027, 4, 1),
+            ),
+        )
+        val profileLine = PayloadEncoder.encode(minimalSnapshot(profile)).split("\n").first { it.startsWith("P|") }
+        assertEquals("P|2025-03-03|2026-09-02|2026-10-01|05:45|17:30", profileLine)
+    }
+
+    @Test
+    fun `promotion field is empty once every promotion has passed`() {
+        val profile = baseProfile().copy(promotionDates = PromotionDates(privateFirstClass = LocalDate(2026, 5, 1)))
+        val profileLine = PayloadEncoder.encode(minimalSnapshot(profile)).split("\n").first { it.startsWith("P|") }
+        assertEquals("P|2025-03-03|2026-09-02||05:45|17:30", profileLine)
     }
 
     @Test
@@ -202,7 +224,7 @@ class PayloadEncoderTest {
             profile = UserProfile(
                 enlistmentDate = d(2026, 2, 9),
                 dischargeDate = d(2027, 10, 8),
-                promotionDate = d(2026, 11, 1),
+                promotionDates = PromotionDates(corporal = d(2026, 11, 1)),
                 firstOvernightDate = null,
                 wakeUpTime = LocalTime(5, 45),
                 dinnerTime = LocalTime(17, 30),

@@ -49,7 +49,7 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
         HolidayEntity::class,
         SyncStateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -97,6 +97,38 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         }
 
         private data class LeaveSeed(val id: String, val name: String, val cap: Int?, val fixedDays: Int?)
+
+        /**
+         * 진급일을 계급별(일병·상병·병장) 세 칸으로 나눈다. 기존의 단일 진급 예정일은 입대일로부터 며칠
+         * 뒤인지를 보고 가장 가까운 계급 칸으로 옮긴다(일병 ≈ 82일 뒤, 상병 ≈ 265일 뒤, 병장 ≈ 446일 뒤이므로
+         * 경계를 170일, 355일로 잡는다). 컬럼 이름이 바뀌므로 표를 새로 만들어 옮긴다.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE `user_profile_new` (`id` INTEGER NOT NULL, `enlistmentDate` INTEGER NOT NULL, " +
+                        "`dischargeDate` INTEGER NOT NULL, `privateFirstClassDate` INTEGER, `corporalDate` INTEGER, " +
+                        "`sergeantDate` INTEGER, `firstOvernightDate` INTEGER, `overnightCycleWeeks` INTEGER NOT NULL, " +
+                        "`weekdayPassPerMonth` INTEGER NOT NULL, `holidayPassPerMonth` INTEGER NOT NULL, " +
+                        "`wakeUpTime` TEXT NOT NULL, `dinnerTime` TEXT NOT NULL, `autoAddOffDuty` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "INSERT INTO user_profile_new (id, enlistmentDate, dischargeDate, privateFirstClassDate, corporalDate, " +
+                        "sergeantDate, firstOvernightDate, overnightCycleWeeks, weekdayPassPerMonth, holidayPassPerMonth, " +
+                        "wakeUpTime, dinnerTime, autoAddOffDuty) " +
+                        "SELECT id, enlistmentDate, dischargeDate, " +
+                        "CASE WHEN promotionDate IS NOT NULL AND promotionDate - enlistmentDate < 170 THEN promotionDate END, " +
+                        "CASE WHEN promotionDate IS NOT NULL AND promotionDate - enlistmentDate >= 170 " +
+                        "AND promotionDate - enlistmentDate < 355 THEN promotionDate END, " +
+                        "CASE WHEN promotionDate IS NOT NULL AND promotionDate - enlistmentDate >= 355 THEN promotionDate END, " +
+                        "firstOvernightDate, overnightCycleWeeks, weekdayPassPerMonth, holidayPassPerMonth, " +
+                        "wakeUpTime, dinnerTime, autoAddOffDuty FROM user_profile",
+                )
+                db.execSQL("DROP TABLE user_profile")
+                db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
+            }
+        }
 
         /** 휴가 종류를 사용자가 정렬할 수 있게 컬럼을 추가한다. 기존 표시 순서(이름순)를 그대로 순번으로 옮긴다. */
         val MIGRATION_4_5 = object : Migration(4, 5) {

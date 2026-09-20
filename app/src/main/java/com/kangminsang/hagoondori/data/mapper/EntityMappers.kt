@@ -11,6 +11,7 @@ import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.PromotionDates
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.local.entity.CombatRestGrantEntity
@@ -35,7 +36,7 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
 fun UserProfileEntity.toCore(): UserProfile = UserProfile(
     enlistmentDate = enlistmentDate,
     dischargeDate = dischargeDate,
-    promotionDate = promotionDate,
+    promotionDates = PromotionDates(privateFirstClassDate, corporalDate, sergeantDate),
     firstOvernightDate = firstOvernightDate,
     overnightCycleWeeks = overnightCycleWeeks,
     weekdayPassPerMonth = weekdayPassPerMonth,
@@ -48,7 +49,9 @@ fun UserProfileEntity.toCore(): UserProfile = UserProfile(
 fun UserProfile.toEntity(): UserProfileEntity = UserProfileEntity(
     enlistmentDate = enlistmentDate,
     dischargeDate = dischargeDate,
-    promotionDate = promotionDate,
+    privateFirstClassDate = promotionDates.privateFirstClass,
+    corporalDate = promotionDates.corporal,
+    sergeantDate = promotionDates.sergeant,
     firstOvernightDate = firstOvernightDate,
     overnightCycleWeeks = overnightCycleWeeks,
     weekdayPassPerMonth = weekdayPassPerMonth,

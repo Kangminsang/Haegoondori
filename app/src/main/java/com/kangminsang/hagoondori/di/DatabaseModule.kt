@@ -31,7 +31,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HagoondoriDatabase =
         Room.databaseBuilder(context, HagoondoriDatabase::class.java, HagoondoriDatabase.DATABASE_NAME)
-            .addMigrations(HagoondoriDatabase.MIGRATION_1_2, HagoondoriDatabase.MIGRATION_2_3, HagoondoriDatabase.MIGRATION_3_4, HagoondoriDatabase.MIGRATION_4_5)
+            .addMigrations(HagoondoriDatabase.MIGRATION_1_2, HagoondoriDatabase.MIGRATION_2_3, HagoondoriDatabase.MIGRATION_3_4, HagoondoriDatabase.MIGRATION_4_5, HagoondoriDatabase.MIGRATION_5_6)
             .addCallback(HagoondoriDatabase.SEED_DEFAULT_LEAVE_TYPES)
             .build()
 

@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,9 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.kangminsang.hagoondori.core.calc.ServiceScheduleCalculator
+import com.kangminsang.hagoondori.core.model.PromotionDates
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.ui.common.TimeTextField
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 
 /**
@@ -31,7 +35,9 @@ import kotlinx.datetime.LocalTime
 fun ProfileSection(profile: UserProfile?, onSave: (UserProfile) -> Unit, modifier: Modifier = Modifier) {
     var enlistmentDate by remember(profile) { mutableStateOf(profile?.enlistmentDate) }
     var dischargeDate by remember(profile) { mutableStateOf(profile?.dischargeDate) }
-    var promotionDate by remember(profile) { mutableStateOf(profile?.promotionDate) }
+    var privateFirstClassDate by remember(profile) { mutableStateOf(profile?.promotionDates?.privateFirstClass) }
+    var corporalDate by remember(profile) { mutableStateOf(profile?.promotionDates?.corporal) }
+    var sergeantDate by remember(profile) { mutableStateOf(profile?.promotionDates?.sergeant) }
     var firstOvernightDate by remember(profile) { mutableStateOf(profile?.firstOvernightDate) }
     var cycleWeeksText by remember(profile) { mutableStateOf((profile?.overnightCycleWeeks ?: 6).toString()) }
     var weekdayPassText by remember(profile) { mutableStateOf((profile?.weekdayPassPerMonth ?: 2).toString()) }
@@ -47,9 +53,43 @@ fun ProfileSection(profile: UserProfile?, onSave: (UserProfile) -> Unit, modifie
         Column(modifier = Modifier.padding(16.dp)) {
             Text("복무 정보", style = MaterialTheme.typography.titleMedium)
 
-            DateTextField("입대일", enlistmentDate, { enlistmentDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            fun applyAutoSchedule(overwriteAll: Boolean, previousEnlistment: LocalDate?, newEnlistment: LocalDate) {
+                val previous = previousEnlistment?.let(ServiceScheduleCalculator::calculate)
+                val auto = ServiceScheduleCalculator.calculate(newEnlistment)
+                // 직접 고친 칸은 남기고, 비었거나 이전 자동 계산값 그대로인 칸만 새 값으로 바꾼다.
+                fun <T> pick(current: T?, oldAuto: T?, newAuto: T): T =
+                    if (overwriteAll || current == null || current == oldAuto) newAuto else current
+                dischargeDate = pick(dischargeDate, previous?.dischargeDate, auto.dischargeDate)
+                privateFirstClassDate = pick(privateFirstClassDate, previous?.promotionDates?.privateFirstClass, auto.promotionDates.privateFirstClass!!)
+                corporalDate = pick(corporalDate, previous?.promotionDates?.corporal, auto.promotionDates.corporal!!)
+                sergeantDate = pick(sergeantDate, previous?.promotionDates?.sergeant, auto.promotionDates.sergeant!!)
+            }
+
+            DateTextField(
+                "입대일",
+                enlistmentDate,
+                { new ->
+                    val previous = enlistmentDate
+                    enlistmentDate = new
+                    if (new != null) applyAutoSchedule(overwriteAll = false, previousEnlistment = previous, newEnlistment = new)
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            Text(
+                "입대일만 입력하면 전역일과 진급일이 해군 기준(${ServiceScheduleCalculator.NAVY_SERVICE_MONTHS}개월 복무, 일병·상병·병장 " +
+                    "진급은 입대한 달 기준 3·9·15개월 뒤 1일)으로 자동 계산됩니다. 실제 날짜와 다르면 아래에서 직접 고치세요.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            enlistmentDate?.let { enlistment ->
+                TextButton(onClick = { applyAutoSchedule(overwriteAll = true, previousEnlistment = null, newEnlistment = enlistment) }) {
+                    Text("전역일·진급일 자동 계산으로 되돌리기")
+                }
+            }
             DateTextField("전역일", dischargeDate, { dischargeDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-            DateTextField("진급 예정일(선택)", promotionDate, { promotionDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            DateTextField("일병 진급일(선택)", privateFirstClassDate, { privateFirstClassDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            DateTextField("상병 진급일(선택)", corporalDate, { corporalDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            DateTextField("병장 진급일(선택)", sergeantDate, { sergeantDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
 
             DateTextField("첫 외박일(선택)", firstOvernightDate, { firstOvernightDate = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             Text(
@@ -94,7 +134,7 @@ fun ProfileSection(profile: UserProfile?, onSave: (UserProfile) -> Unit, modifie
             Button(
                 onClick = {
                     val enlistment = enlistmentDate
-                    val discharge = dischargeDate
+                    val discharge = dischargeDate ?: enlistment?.let { ServiceScheduleCalculator.calculate(it).dischargeDate }
                     val cycleWeeks = cycleWeeksText.toIntOrNull()
                     val weekdayPass = weekdayPassText.toIntOrNull()
                     val holidayPass = holidayPassText.toIntOrNull()
@@ -106,7 +146,7 @@ fun ProfileSection(profile: UserProfile?, onSave: (UserProfile) -> Unit, modifie
                     val newProfile = UserProfile(
                         enlistmentDate = enlistment,
                         dischargeDate = discharge,
-                        promotionDate = promotionDate,
+                        promotionDates = PromotionDates(privateFirstClassDate, corporalDate, sergeantDate),
                         firstOvernightDate = firstOvernightDate,
                         overnightCycleWeeks = cycleWeeks,
                         weekdayPassPerMonth = weekdayPass,

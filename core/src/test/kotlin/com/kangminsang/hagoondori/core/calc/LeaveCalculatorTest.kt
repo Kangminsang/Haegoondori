@@ -3,6 +3,7 @@ package com.kangminsang.hagoondori.core.calc
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -173,14 +174,22 @@ class LeaveCalculatorTest {
     }
 
     @Test
-    fun `ongoing leave counts elapsed days as used and the rest as planned`() {
+    fun `leave that has started counts fully as used, even its remaining days`() {
         val grants = listOf(grant("g1", 10, d(1, 1)))
-        // 9/18~9/21, 오늘 9/19 -> 18,19일은 사용, 20,21일은 계획
+        // 9/18~9/21, 오늘 9/19 -> 이미 출타 중이므로 4일 모두 사용
         val s = LeaveCalculator.summarize(consolation, grants, listOf(use("u", d(9, 18), d(9, 21))), today)
-        assertEquals(2, s.used)
-        assertEquals(8, s.remaining)
-        assertEquals(2, s.planned)
+        assertEquals(4, s.used)
+        assertEquals(6, s.remaining)
+        assertEquals(0, s.planned)
         assertEquals(6, s.remainingAfterPlanned)
+    }
+
+    @Test
+    fun `leave starting today counts as used`() {
+        val grants = listOf(grant("g1", 10, d(1, 1)))
+        val s = LeaveCalculator.summarize(consolation, grants, listOf(use("u", today, d(9, 21))), today)
+        assertEquals(3, s.used)
+        assertEquals(0, s.planned)
     }
 
     @Test
@@ -190,5 +199,38 @@ class LeaveCalculatorTest {
         assertEquals(27, s.remaining)
         assertEquals(3, s.planned)
         assertEquals(24, s.remainingAfterPlanned)
+    }
+
+    @Test
+    fun `leave chained to a started overnight is used in full`() {
+        val grants = listOf(grant("g1", 10, d(1, 1)))
+        // 외박 9/19(오늘) 뒤에 이어 붙인 휴가 9/20~9/22는 아직 시작 전이지만 이어진 출타라 전부 사용
+        val s = LeaveCalculator.summarize(
+            consolation, grants, listOf(use("u", d(9, 20), d(9, 22))), today,
+            overnightRecords = listOf(OvernightRecord("o", today)),
+        )
+        assertEquals(3, s.used)
+        assertEquals(0, s.planned)
+    }
+
+    @Test
+    fun `leave chained to another started leave is used in full`() {
+        val grants = listOf(grant("g1", 10, d(1, 1)))
+        val usages = listOf(use("a", d(9, 18), d(9, 19)), use("b", d(9, 20), d(9, 22)))
+        val s = LeaveCalculator.summarize(consolation, grants, usages, today)
+        assertEquals(5, s.used)
+        assertEquals(0, s.planned)
+    }
+
+    @Test
+    fun `chained leave stays planned until the chain starts`() {
+        val grants = listOf(grant("g1", 10, d(1, 1)))
+        // 외박 9/26 + 휴가 9/27~9/28: 오늘(9/19) 기준 전부 예정
+        val s = LeaveCalculator.summarize(
+            consolation, grants, listOf(use("u", d(9, 27), d(9, 28))), today,
+            overnightRecords = listOf(OvernightRecord("o", d(9, 26))),
+        )
+        assertEquals(0, s.used)
+        assertEquals(2, s.planned)
     }
 }

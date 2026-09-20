@@ -72,8 +72,16 @@ class LeaveManagementViewModel @Inject constructor(
         overnightData: OvernightData,
         passHoliday: PassHolidayData,
     ): LeaveManagementUiState {
+        val overnightSchedule = profile?.firstOvernightDate?.let { first ->
+            OvernightScheduleCalculator.buildSchedule(first, profile.overnightCycleWeeks, overnightData.records, overnightData.forfeitures)
+        }
+
         val leaveSummaries = leaveData.types.map { type ->
-            val s = LeaveCalculator.summarize(type, leaveData.grants, leaveData.usages, AppClock.today())
+            val s = LeaveCalculator.summarize(
+                type, leaveData.grants, leaveData.usages, AppClock.today(),
+                overnightRecords = overnightData.records,
+                nextOvernightDate = overnightSchedule?.nextScheduledDate,
+            )
             LeaveTypeSummary(
                 type = type,
                 granted = s.granted,
@@ -93,10 +101,6 @@ class LeaveManagementViewModel @Inject constructor(
             restGrants = combatRestData.grants,
             restUsages = combatRestData.usages,
         )
-
-        val overnightSchedule = profile?.firstOvernightDate?.let { first ->
-            OvernightScheduleCalculator.buildSchedule(first, profile.overnightCycleWeeks, overnightData.records, overnightData.forfeitures)
-        }
 
         val upcomingSlotOptions = if (profile?.firstOvernightDate != null && overnightSchedule != null) {
             val forfeitedSlots = overnightData.forfeitures.map { it.slotIndex }.toSet()

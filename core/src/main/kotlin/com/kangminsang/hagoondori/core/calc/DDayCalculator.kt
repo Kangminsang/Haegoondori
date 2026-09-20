@@ -1,6 +1,9 @@
 package com.kangminsang.hagoondori.core.calc
 
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.daysUntil
 
 /**
@@ -25,6 +28,27 @@ object DDayCalculator {
      */
     fun promotionProgress(enlistmentDate: LocalDate, dischargeDate: LocalDate, promotionDate: LocalDate): Double =
         progressPercent(enlistmentDate, dischargeDate, promotionDate)
+
+    /**
+     * 초·밀리초까지 이어서 흐르는 복무 진행률(%). 입대일 0시부터 전역일 0시까지를 [zone] 기준으로
+     * 잡으므로, 각 날짜의 자정에서는 [serviceProgress]와 정확히 같은 값이 된다. 화면에서 소수점
+     * 아래 여러 자리가 계속 올라가는 것을 보여주기 위한 값이며, 0~100 범위로 clamp한다.
+     */
+    fun liveServiceProgress(enlistmentDate: LocalDate, dischargeDate: LocalDate, now: Instant, zone: TimeZone): Double {
+        val start = enlistmentDate.atStartOfDayIn(zone).toEpochMilliseconds()
+        val end = dischargeDate.atStartOfDayIn(zone).toEpochMilliseconds()
+        if (end <= start) return 0.0
+        val elapsed = now.toEpochMilliseconds() - start
+        return (elapsed.toDouble() / (end - start).toDouble() * 100.0).coerceIn(0.0, 100.0)
+    }
+
+    /** 입대일 0시부터 지금까지 보낸 시간(밀리초). 입대 전이면 0. */
+    fun elapsedMillis(enlistmentDate: LocalDate, now: Instant, zone: TimeZone): Long =
+        (now.toEpochMilliseconds() - enlistmentDate.atStartOfDayIn(zone).toEpochMilliseconds()).coerceAtLeast(0L)
+
+    /** 전역일 0시까지 남은 시간(밀리초). 이미 지났으면 0. */
+    fun remainingMillis(dischargeDate: LocalDate, now: Instant, zone: TimeZone): Long =
+        (dischargeDate.atStartOfDayIn(zone).toEpochMilliseconds() - now.toEpochMilliseconds()).coerceAtLeast(0L)
 
     private fun progressPercent(enlistmentDate: LocalDate, dischargeDate: LocalDate, at: LocalDate): Double {
         val total = enlistmentDate.daysUntil(dischargeDate)

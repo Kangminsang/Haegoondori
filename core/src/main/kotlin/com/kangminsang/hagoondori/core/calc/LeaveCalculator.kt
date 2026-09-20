@@ -3,6 +3,7 @@ package com.kangminsang.hagoondori.core.calc
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OvernightRecord
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
 
@@ -83,7 +84,7 @@ object LeaveCalculator {
     /**
      * 한 휴가 종류의 요약. [grants]는 부여가 있는 종류에서만 채워진다(정기휴가처럼 총량 고정이면 비어 있음).
      *
-     * [used]와 [remaining]은 **오늘까지 실제로 쓴** 일수만 반영한다. 아직 오지 않은 날에 잡아 둔
+     * [used]와 [remaining]은 이미 시작한(출타를 나간) 휴가만 반영한다. 아직 시작하지 않은
      * 휴가는 [planned]로 따로 세고, 그것까지 빼면 남는 일수가 [remainingAfterPlanned]다.
      */
     data class Summary(
@@ -107,14 +108,14 @@ object LeaveCalculator {
         grants: List<LeaveGrant>,
         usages: List<LeaveUsage>,
         today: LocalDate,
+        overnightRecords: List<OvernightRecord> = emptyList(),
+        nextOvernightDate: LocalDate? = null,
     ): Summary {
-        // 오늘 이전에 시작한 휴가는 오늘까지 지난 날만 사용으로 치고, 나머지(미래 날)는 계획으로 분리한다.
-        val elapsed = usages.mapNotNull { usage ->
-            if (usage.startDate > today) null
-            else if (usage.endDate > today) usage.copy(endDate = today)
-            else usage
-        }
-        val actual = summarizeAll(type, grants, elapsed, today)
+        // 출타를 나간(시작일이 오늘 이전인) 휴가는 남은 날까지 통째로 사용으로 치고, 아직 시작하지 않은
+        // 휴가만 계획으로 분리한다. 외박이나 다른 휴가와 이어 붙인 휴가는 이어진 출타 전체의 시작일로 판정한다.
+        val chainStarts = OutingPeriodCalculator.leaveChainStarts(usages, overnightRecords, nextOvernightDate)
+        val started = usages.filter { (chainStarts[it.id] ?: it.startDate) <= today }
+        val actual = summarizeAll(type, grants, started, today)
         val afterPlanned = summarizeAll(type, grants, usages, today)
         return actual.copy(
             planned = afterPlanned.used - actual.used,
