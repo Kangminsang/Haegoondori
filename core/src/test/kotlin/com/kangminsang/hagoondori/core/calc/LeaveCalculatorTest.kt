@@ -161,4 +161,34 @@ class LeaveCalculatorTest {
         assertEquals(4, s.granted)
         assertEquals(listOf(3, 1), s.grants.map { it.recognizedDays })
     }
+
+    @Test
+    fun `future leave is planned, not used`() {
+        val grants = listOf(grant("g1", 10, d(1, 1)))
+        val s = LeaveCalculator.summarize(consolation, grants, listOf(use("u", d(9, 26), d(9, 28))), today)
+        assertEquals(0, s.used)
+        assertEquals(10, s.remaining)
+        assertEquals(3, s.planned)
+        assertEquals(7, s.remainingAfterPlanned)
+    }
+
+    @Test
+    fun `ongoing leave counts elapsed days as used and the rest as planned`() {
+        val grants = listOf(grant("g1", 10, d(1, 1)))
+        // 9/18~9/21, 오늘 9/19 -> 18,19일은 사용, 20,21일은 계획
+        val s = LeaveCalculator.summarize(consolation, grants, listOf(use("u", d(9, 18), d(9, 21))), today)
+        assertEquals(2, s.used)
+        assertEquals(8, s.remaining)
+        assertEquals(2, s.planned)
+        assertEquals(6, s.remainingAfterPlanned)
+    }
+
+    @Test
+    fun `fixed days leave type also separates planned days`() {
+        val regular = LeaveType("consolation", "정기휴가", cap = null, fixedDays = 27)
+        val s = LeaveCalculator.summarize(regular, emptyList(), listOf(use("u", d(9, 26), d(9, 28))), today)
+        assertEquals(27, s.remaining)
+        assertEquals(3, s.planned)
+        assertEquals(24, s.remainingAfterPlanned)
+    }
 }

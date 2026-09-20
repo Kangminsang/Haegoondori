@@ -64,6 +64,7 @@ fun CalendarScreen(
     var selectedDates by remember { mutableStateOf(setOf<LocalDate>()) }
     var selectedType by remember { mutableStateOf(DutyType.DUTY) }
     var isPassMode by remember { mutableStateOf(false) }
+    var addingEvent by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -134,15 +135,18 @@ fun CalendarScreen(
                 SelectedDayDetail(
                     uiState.selectedDayInfo,
                     onDeleteEvent = viewModel::deleteEvent,
-                    onAddPass = viewModel::addPass,
                     onDeletePass = viewModel::deletePass,
+                    addingEvent = addingEvent,
+                    onToggleAddEvent = { addingEvent = !addingEvent },
                 )
 
                 uiState.selectedDate?.let { selected ->
                     AddEventSection(
+                        expanded = addingEvent,
+                        onClose = { addingEvent = false },
                         selectedDate = selected,
                         onAddEvent = viewModel::addEvent,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             }
@@ -216,8 +220,9 @@ private fun MonthHeader(year: Int, month: Int, onPrevious: () -> Unit, onNext: (
 private fun SelectedDayDetail(
     day: CalendarDayInfo?,
     onDeleteEvent: (Event) -> Unit,
-    onAddPass: (LocalDate, PassType) -> Unit,
     onDeletePass: (PassRecord) -> Unit,
+    addingEvent: Boolean,
+    onToggleAddEvent: () -> Unit,
 ) {
     if (day == null) {
         Text("날짜를 선택하면 상세 내용을 볼 수 있습니다", style = MaterialTheme.typography.bodyMedium)
@@ -225,7 +230,13 @@ private fun SelectedDayDetail(
     }
 
     Column {
-        Text("${day.date}", style = MaterialTheme.typography.titleMedium)
+        // 일정 추가 버튼은 날짜 옆에 붙여 상세 영역을 간결하게 유지한다.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${day.date}", style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = onToggleAddEvent) {
+                Text(if (addingEvent) "닫기" else "+ 일정 추가")
+            }
+        }
 
         if (!day.hasAnyMarker) {
             Text(
@@ -249,9 +260,6 @@ private fun SelectedDayDetail(
                     Icon(Icons.Filled.Close, contentDescription = "외출 기록 삭제")
                 }
             }
-        }
-        TextButton(onClick = { onAddPass(day.date, day.autoPassType) }) {
-            Text("+ 이 날 외출 기록 (${passTypeLabel(day.autoPassType)})")
         }
         day.dutyAssignments.forEach { DetailLine("근무: ${dutyTypeLabel(it.type)}") }
         day.events.forEach { event ->
@@ -284,15 +292,13 @@ private fun EventLine(event: Event, onDelete: () -> Unit) {
 /** 일반 일정 추가 폼(F4, 스펙 4.12절). 선택한 날짜를 기본 시작일로 채운다. */
 @Composable
 private fun AddEventSection(
+    expanded: Boolean,
+    onClose: () -> Unit,
     selectedDate: LocalDate,
     onAddEvent: (title: String, startDate: LocalDate, endDate: LocalDate?, isImportant: Boolean, memo: String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxWidth()) {
-        TextButton(onClick = { expanded = !expanded }) {
-            Text(if (expanded) "일정 추가 닫기" else "+ 일정 추가")
-        }
         if (expanded) {
             var title by remember { mutableStateOf("") }
             var endDate by remember(selectedDate) { mutableStateOf<LocalDate?>(null) }
@@ -348,7 +354,7 @@ private fun AddEventSection(
                     endDate = null
                     isImportant = false
                     memo = ""
-                    expanded = false
+                    onClose()
                 },
                 modifier = Modifier.padding(top = 8.dp),
             ) { Text("저장") }

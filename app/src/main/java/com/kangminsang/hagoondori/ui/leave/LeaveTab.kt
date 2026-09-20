@@ -96,6 +96,13 @@ private fun LeaveTypeCard(
                 Text("사용 ${summary.used}일", style = MaterialTheme.typography.bodyMedium)
                 Text("잔여 ${summary.remaining}일", style = MaterialTheme.typography.bodyMedium)
             }
+            if (summary.planned > 0) {
+                Text(
+                    "예정 ${summary.planned}일 (모두 쓰면 ${summary.remainingAfterPlanned}일 남음)",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
             if (summary.expired > 0) {
                 Text(
                     "유효 기간이 지나 ${summary.expired}일 소멸",

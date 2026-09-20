@@ -80,13 +80,20 @@ object LeaveCalculator {
         val remainingDays: Int,
     )
 
-    /** 한 휴가 종류의 요약. [grants]는 부여가 있는 종류에서만 채워진다(정기휴가처럼 총량 고정이면 비어 있음). */
+    /**
+     * 한 휴가 종류의 요약. [grants]는 부여가 있는 종류에서만 채워진다(정기휴가처럼 총량 고정이면 비어 있음).
+     *
+     * [used]와 [remaining]은 **오늘까지 실제로 쓴** 일수만 반영한다. 아직 오지 않은 날에 잡아 둔
+     * 휴가는 [planned]로 따로 세고, 그것까지 빼면 남는 일수가 [remainingAfterPlanned]다.
+     */
     data class Summary(
         val granted: Int,
         val used: Int,
         val expired: Int,
         val remaining: Int,
         val grants: List<GrantStatus>,
+        val planned: Int = 0,
+        val remainingAfterPlanned: Int = remaining,
     )
 
     /**
@@ -96,6 +103,26 @@ object LeaveCalculator {
      * [remaining]과 같다.
      */
     fun summarize(
+        type: LeaveType,
+        grants: List<LeaveGrant>,
+        usages: List<LeaveUsage>,
+        today: LocalDate,
+    ): Summary {
+        // 오늘 이전에 시작한 휴가는 오늘까지 지난 날만 사용으로 치고, 나머지(미래 날)는 계획으로 분리한다.
+        val elapsed = usages.mapNotNull { usage ->
+            if (usage.startDate > today) null
+            else if (usage.endDate > today) usage.copy(endDate = today)
+            else usage
+        }
+        val actual = summarizeAll(type, grants, elapsed, today)
+        val afterPlanned = summarizeAll(type, grants, usages, today)
+        return actual.copy(
+            planned = afterPlanned.used - actual.used,
+            remainingAfterPlanned = afterPlanned.remaining,
+        )
+    }
+
+    private fun summarizeAll(
         type: LeaveType,
         grants: List<LeaveGrant>,
         usages: List<LeaveUsage>,

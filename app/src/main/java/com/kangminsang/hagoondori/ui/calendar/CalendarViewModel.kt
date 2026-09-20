@@ -99,7 +99,6 @@ class CalendarViewModel @Inject constructor(
                 hasOvernight = op.overnightRecords.any { date in it.date..it.endDate },
                 hasPass = op.passRecords.any { it.date == date },
                 passRecords = op.passRecords.filter { it.date == date },
-                autoPassType = PassCalculator.classifyType(date, edh.holidays),
                 events = edh.events.filter { date in it.startDate..(it.endDate ?: it.startDate) },
                 dutyAssignments = edh.duties.filter { it.date == date },
             )
@@ -128,10 +127,6 @@ class CalendarViewModel @Inject constructor(
     }
 
     // ---- 외출 ----
-
-    fun addPass(date: LocalDate, type: PassType) {
-        viewModelScope.launch { passRepository.addRecord(date, type, null) }
-    }
 
     fun deletePass(record: PassRecord) {
         viewModelScope.launch { passRepository.deleteRecord(record) }
