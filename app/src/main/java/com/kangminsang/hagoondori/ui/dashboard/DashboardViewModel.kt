@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.kangminsang.hagoondori.core.calc.CombatRestCalculator
 import com.kangminsang.hagoondori.core.calc.DDayCalculator
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
+import com.kangminsang.hagoondori.core.calc.OutingPeriodCalculator
 import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
-import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.LeaveGrant
@@ -15,7 +15,6 @@ import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
-import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayAutoRefresh
@@ -91,6 +90,8 @@ class DashboardViewModel @Inject constructor(
                 used = s.used,
                 expired = s.expired,
                 remaining = s.remaining,
+                planned = s.planned,
+                remainingAfterPlanned = s.remainingAfterPlanned,
                 grantStatuses = s.grants,
                 remainingCapCapacity = LeaveCalculator.remainingCapCapacity(type, leaveData.grants),
             )
@@ -112,12 +113,14 @@ class DashboardViewModel @Inject constructor(
             )
         }
 
-        val weekdayRemaining = profile?.let {
-            PassCalculator.remainingInMonth(it, passAndSync.records, today.year, today.monthNumber, PassType.WEEKDAY)
-        } ?: 0
-        val holidayRemaining = profile?.let {
-            PassCalculator.remainingInMonth(it, passAndSync.records, today.year, today.monthNumber, PassType.HOLIDAY)
-        } ?: 0
+        val nextOuting = OutingPeriodCalculator.next(
+            today = today,
+            leaveUsages = leaveData.usages,
+            leaveTypes = leaveData.types,
+            overnightRecords = overnightData.records,
+            nextOvernightDate = overnightSchedule?.nextScheduledDate,
+        )
+        val nextPass = passAndSync.records.map { it.date }.filter { it >= today }.minOrNull()
 
         return DashboardUiState(
             isLoading = false,
@@ -133,9 +136,8 @@ class DashboardViewModel @Inject constructor(
             },
             leaveSummaries = leaveSummaries,
             combatRestSummary = combatRestSummary,
-            overnightSchedule = overnightSchedule,
-            weekdayPassRemaining = weekdayRemaining,
-            holidayPassRemaining = holidayRemaining,
+            nextOuting = nextOuting,
+            nextPass = nextPass,
             syncState = passAndSync.syncState,
         )
     }

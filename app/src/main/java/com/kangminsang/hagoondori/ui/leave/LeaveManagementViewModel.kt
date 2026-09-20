@@ -80,6 +80,8 @@ class LeaveManagementViewModel @Inject constructor(
                 used = s.used,
                 expired = s.expired,
                 remaining = s.remaining,
+                planned = s.planned,
+                remainingAfterPlanned = s.remainingAfterPlanned,
                 grantStatuses = s.grants,
                 remainingCapCapacity = LeaveCalculator.remainingCapCapacity(type, leaveData.grants),
             )
