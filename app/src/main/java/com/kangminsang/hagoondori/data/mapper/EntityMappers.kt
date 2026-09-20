@@ -59,7 +59,7 @@ fun UserProfile.toEntity(): UserProfileEntity = UserProfileEntity(
 )
 
 fun LeaveTypeEntity.toCore(): LeaveType = LeaveType(id, name, cap, overflowBehavior, fixedDays)
-fun LeaveType.toEntity(): LeaveTypeEntity = LeaveTypeEntity(id, name, cap, overflowBehavior, fixedDays)
+fun LeaveType.toEntity(sortOrder: Int = 0): LeaveTypeEntity = LeaveTypeEntity(id, name, cap, overflowBehavior, fixedDays, sortOrder)
 
 fun LeaveGrantEntity.toCore(): LeaveGrant = LeaveGrant(id, leaveTypeId, days, grantedDate, reason, expiryDate)
 fun LeaveGrant.toEntity(): LeaveGrantEntity = LeaveGrantEntity(id, leaveTypeId, days, grantedDate, reason, expiryDate)

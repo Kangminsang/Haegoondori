@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -39,15 +41,19 @@ import kotlinx.datetime.daysUntil
 fun LeaveTab(
     uiState: LeaveManagementUiState,
     onAddGrant: (leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?, expiryDate: LocalDate?) -> Unit,
+    onMoveType: (leaveTypeId: String, delta: Int) -> Unit,
     onDeleteGrant: (LeaveGrant) -> Unit,
     onAddUsage: (leaveTypeId: String, startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
     onDeleteUsage: (LeaveUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxWidth()) {
-        items(uiState.leaveSummaries, key = { it.type.id }) { summary ->
+        itemsIndexed(uiState.leaveSummaries, key = { _, it -> it.type.id }) { index, summary ->
             LeaveTypeCard(
                 summary = summary,
+                canMoveUp = index > 0,
+                canMoveDown = index < uiState.leaveSummaries.lastIndex,
+                onMove = { delta -> onMoveType(summary.type.id, delta) },
                 usages = uiState.leaveUsages.filter { it.leaveTypeId == summary.type.id },
                 onAddGrant = { days, date, reason, expiry -> onAddGrant(summary.type.id, days, date, reason, expiry) },
                 onDeleteGrant = onDeleteGrant,
@@ -62,6 +68,9 @@ fun LeaveTab(
 @Composable
 private fun LeaveTypeCard(
     summary: LeaveTypeSummary,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMove: (delta: Int) -> Unit,
     usages: List<LeaveUsage>,
     onAddGrant: (days: Int, grantedDate: LocalDate, reason: String?, expiryDate: LocalDate?) -> Unit,
     onDeleteGrant: (LeaveGrant) -> Unit,
@@ -71,7 +80,15 @@ private fun LeaveTypeCard(
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(summary.type.name, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(summary.type.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
+                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "위로 이동")
+                }
+                IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "아래로 이동")
+                }
+            }
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 // 상한이 있는 종류(포상휴가)는 상한도 함께 보여 준다. 부여받은 만큼만 잔여가 생긴다.
                 summary.type.cap?.let { Text("상한 ${it}일", style = MaterialTheme.typography.bodyMedium) }

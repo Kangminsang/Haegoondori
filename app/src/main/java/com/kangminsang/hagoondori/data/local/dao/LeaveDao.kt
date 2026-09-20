@@ -12,8 +12,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LeaveDao {
-    @Query("SELECT * FROM leave_type ORDER BY name")
+    @Query("SELECT * FROM leave_type ORDER BY sortOrder, name")
     fun observeTypes(): Flow<List<LeaveTypeEntity>>
+
+    @Query("UPDATE leave_type SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateTypeSortOrder(id: String, sortOrder: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertType(entity: LeaveTypeEntity)

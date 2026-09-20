@@ -13,6 +13,8 @@ data class LeaveTypeEntity(
     val cap: Int?,
     val overflowBehavior: OverflowBehavior,
     val fixedDays: Int?,
+    /** 목록에서 보여줄 순서(작을수록 위). 사용자가 휴가 탭에서 바꾼다. */
+    val sortOrder: Int = 0,
 )
 
 /**

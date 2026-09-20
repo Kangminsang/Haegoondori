@@ -136,6 +136,16 @@ class LeaveManagementViewModel @Inject constructor(
         viewModelScope.launch { leaveRepository.addGrant(leaveTypeId, days, grantedDate, reason, expiryDate) }
     }
 
+    /** 휴가 종류 카드를 [delta](-1=위, +1=아래)만큼 옮긴다. 이미 끝이면 아무 일도 하지 않는다. */
+    fun moveLeaveType(leaveTypeId: String, delta: Int) {
+        val ids = uiState.value.leaveTypes.map { it.id }.toMutableList()
+        val from = ids.indexOf(leaveTypeId)
+        val to = from + delta
+        if (from < 0 || to !in ids.indices) return
+        ids.add(to, ids.removeAt(from))
+        viewModelScope.launch { leaveRepository.reorderTypes(ids) }
+    }
+
     fun deleteLeaveGrant(grant: LeaveGrant) {
         viewModelScope.launch { leaveRepository.deleteGrant(grant) }
     }

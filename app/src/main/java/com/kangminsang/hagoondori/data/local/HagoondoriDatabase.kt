@@ -49,7 +49,7 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
         HolidayEntity::class,
         SyncStateEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -78,15 +78,15 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         val SEED_DEFAULT_LEAVE_TYPES = object : Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 listOf(
+                    LeaveSeed("leave-consolation", "위로휴가", cap = null, fixedDays = null),
                     LeaveSeed("leave-regular", "정기휴가", cap = null, fixedDays = 27),
                     LeaveSeed("leave-reward", "포상휴가", cap = 17, fixedDays = null),
-                    LeaveSeed("leave-consolation", "위로휴가", cap = null, fixedDays = null),
-                ).forEach { seed ->
+                ).forEachIndexed { index, seed ->
                     val overflow = if (seed.cap != null) "CONVERT_TO_COMBAT_REST" else "NONE"
                     db.execSQL(
-                        "INSERT INTO leave_type (id, name, cap, overflowBehavior, fixedDays) " +
-                            "SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM leave_type WHERE name = ?)",
-                        arrayOf<Any?>(seed.id, seed.name, seed.cap, overflow, seed.fixedDays, seed.name),
+                        "INSERT INTO leave_type (id, name, cap, overflowBehavior, fixedDays, sortOrder) " +
+                            "SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM leave_type WHERE name = ?)",
+                        arrayOf<Any?>(seed.id, seed.name, seed.cap, overflow, seed.fixedDays, index, seed.name),
                     )
                     db.execSQL(
                         "UPDATE leave_type SET fixedDays = ? WHERE name = ?",
@@ -97,6 +97,17 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         }
 
         private data class LeaveSeed(val id: String, val name: String, val cap: Int?, val fixedDays: Int?)
+
+        /** 휴가 종류를 사용자가 정렬할 수 있게 컬럼을 추가한다. 기존 표시 순서(이름순)를 그대로 순번으로 옮긴다. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE leave_type ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "UPDATE leave_type SET sortOrder = " +
+                        "(SELECT COUNT(*) FROM leave_type AS other WHERE other.name < leave_type.name)",
+                )
+            }
+        }
 
         /** 부여에 유효 기간(`expiryDate`)을 둘 수 있게 컬럼을 추가한다. 기존 부여는 기한 없음. */
         val MIGRATION_3_4 = object : Migration(3, 4) {
