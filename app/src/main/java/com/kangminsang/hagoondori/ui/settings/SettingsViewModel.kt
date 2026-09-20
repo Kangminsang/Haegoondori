@@ -14,6 +14,7 @@ import com.kangminsang.hagoondori.data.repository.HolidayRepository
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import com.kangminsang.hagoondori.data.repository.SyncStateRepository
 import com.kangminsang.hagoondori.export.DeviceFolderCheck
+import com.kangminsang.hagoondori.export.DeviceFolderState
 import com.kangminsang.hagoondori.export.DeviceStorageAccess
 import com.kangminsang.hagoondori.export.DeviceSyncService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -68,7 +69,15 @@ class SettingsViewModel @Inject constructor(
 
     fun clearHolidayApiKey() = holidayApiKeyStore.clear()
 
-    fun isDeviceFolderSelected(): Boolean = deviceStorageAccess.savedTreeUri != null
+    /** 장치 폴더의 현재 상태. 케이블을 뽑았다 꽂으면 [DeviceFolderState.PermissionLost]가 될 수 있다. */
+    fun deviceFolderState(): DeviceFolderState = when {
+        deviceStorageAccess.savedTreeUri == null -> DeviceFolderState.NotSelected
+        deviceStorageAccess.hasPersistedWritePermission() -> DeviceFolderState.Ready
+        else -> DeviceFolderState.PermissionLost
+    }
+
+    /** 폴더 선택 화면이 저장된 장치 루트에서 바로 열리도록 하는 시작 위치. */
+    fun deviceFolderInitialUri(): Uri? = deviceStorageAccess.savedTreeUri
 
     /** 장치 루트가 맞을 때만 권한을 저장한다. 거부되면 안내 문구가 담긴 [DeviceFolderCheck.Result.Rejected]를 반환한다. */
     fun onDeviceFolderSelected(uri: Uri): DeviceFolderCheck.Result {
