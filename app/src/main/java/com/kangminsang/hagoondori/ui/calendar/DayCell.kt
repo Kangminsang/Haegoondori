@@ -43,6 +43,7 @@ import kotlinx.datetime.DayOfWeek
 fun DayCell(
     day: CalendarDayInfo,
     isSelected: Boolean,
+    fillSelected: Boolean = false,
     isToday: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -59,6 +60,7 @@ fun DayCell(
     Column(
         modifier = modifier
             .aspectRatio(0.85f)
+            .then(if (isSelected && fillSelected) Modifier.background(colors.surfaceVariant) else Modifier)
             .then(if (isSelected) Modifier.border(2.dp, colors.onSurface) else Modifier)
             .clickable(onClick = onClick)
             .drawBehind { drawPeriodBar(day, colors.error, colors.onSurface) },

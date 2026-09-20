@@ -22,12 +22,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kangminsang.hagoondori.ui.calendar.CalendarScreen
 import com.kangminsang.hagoondori.ui.dashboard.DashboardScreen
-import com.kangminsang.hagoondori.ui.duty.DutyBulkInputScreen
 import com.kangminsang.hagoondori.ui.leave.LeaveManagementScreen
 import com.kangminsang.hagoondori.ui.settings.SettingsScreen
 
 /**
- * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 5개로 구성된다.
+ * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 4개로 구성된다.
  */
 @Composable
 fun HagoondoriNavHost() {
@@ -54,7 +53,6 @@ fun HagoondoriNavHost() {
             }
             composable(HagoondoriDestination.Calendar.route) { CalendarScreen() }
             composable(HagoondoriDestination.Leave.route) { LeaveManagementScreen() }
-            composable(HagoondoriDestination.Duty.route) { DutyBulkInputScreen() }
             composable(HagoondoriDestination.Settings.route) { SettingsScreen() }
         }
     }

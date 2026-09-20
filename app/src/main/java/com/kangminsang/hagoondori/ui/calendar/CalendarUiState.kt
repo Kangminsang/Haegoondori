@@ -32,6 +32,8 @@ data class CalendarUiState(
     val month: Int,
     val days: List<CalendarDayInfo> = emptyList(),
     val selectedDate: LocalDate? = null,
+    /** 당직 저장 시 다음 날 비번을 자동 추가할지(근무 입력 모드 안내 문구용). */
+    val autoAddOffDuty: Boolean = false,
 ) {
     val selectedDayInfo: CalendarDayInfo?
         get() = selectedDate?.let { selected -> days.firstOrNull { it.date == selected } }

@@ -41,7 +41,9 @@ private const val COLUMNS = 7
 @Composable
 fun MonthGrid(
     days: List<CalendarDayInfo>,
-    selectedDate: LocalDate?,
+    selectedDates: Set<LocalDate>,
+    /** 근무 입력 모드: 선택된 칸을 테두리에 더해 음영으로도 채워, 여러 칸이 골라졌음을 분명히 한다. */
+    fillSelected: Boolean = false,
     onDayClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -78,7 +80,8 @@ fun MonthGrid(
                     if (day.isCurrentMonth) {
                         DayCell(
                             day = day,
-                            isSelected = day.date == selectedDate,
+                            isSelected = day.date in selectedDates,
+                            fillSelected = fillSelected,
                             isToday = day.date == today,
                             onClick = { onDayClick(day.date) },
                             modifier = Modifier.weight(1f),
