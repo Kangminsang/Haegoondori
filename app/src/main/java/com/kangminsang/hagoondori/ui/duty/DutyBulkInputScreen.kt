@@ -1,6 +1,7 @@
 package com.kangminsang.hagoondori.ui.duty
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,9 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import com.kangminsang.hagoondori.ui.common.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -187,18 +186,19 @@ private fun DutyMonthGrid(
                         modifier = Modifier
                             .weight(1f)
                             .aspectRatio(0.8f)
-                            .padding(2.dp)
-                            .clip(RoundedCornerShape(8.dp))
                             .background(
-                                if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isCurrentMonth) 0.4f else 0.15f),
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                            )
+                            .border(
+                                1.dp,
+                                if (isCurrentMonth) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant,
                             )
                             .clickable { onToggleDate(date) },
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         val textColor = when {
                             isSelected -> MaterialTheme.colorScheme.onPrimary
-                            !isCurrentMonth -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                            !isCurrentMonth -> MaterialTheme.colorScheme.outlineVariant
                             isHoliday -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.onSurface
                         }
