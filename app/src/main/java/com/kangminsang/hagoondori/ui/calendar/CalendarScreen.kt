@@ -246,7 +246,7 @@ private fun SelectedDayDetail(
             )
         }
 
-        if (day.hasLeave) DetailLine("휴가 사용일")
+        day.leaveNames.forEach { DetailLine("$it 사용일") }
         if (day.hasCombatRest) DetailLine("전투휴무 사용일")
         if (day.hasOvernight) DetailLine("외박일")
         day.passRecords.forEach { record ->

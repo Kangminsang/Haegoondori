@@ -10,7 +10,8 @@ data class CalendarDayInfo(
     val date: LocalDate,
     val isCurrentMonth: Boolean,
     val isHoliday: Boolean,
-    val hasLeave: Boolean,
+    /** 이 날 쓰는 휴가 이름들(예: 포상휴가). 사용 기록에 이름을 붙였다면 함께 표시한다. */
+    val leaveNames: List<String>,
     val hasCombatRest: Boolean,
     val hasOvernight: Boolean,
     val hasPass: Boolean,
@@ -19,6 +20,8 @@ data class CalendarDayInfo(
     val events: List<Event>,
     val dutyAssignments: List<DutyAssignment>,
 ) {
+    val hasLeave: Boolean get() = leaveNames.isNotEmpty()
+
     val hasAnyMarker: Boolean
         get() = hasLeave || hasCombatRest || hasOvernight || hasPass || events.isNotEmpty() || dutyAssignments.isNotEmpty()
 }
