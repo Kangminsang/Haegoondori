@@ -24,6 +24,7 @@ import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.ui.common.DateTextField
+import com.kangminsang.hagoondori.ui.common.rememberToday
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
 
@@ -35,7 +36,7 @@ fun PassTab(
     modifier: Modifier = Modifier,
 ) {
     val profile = uiState.profile
-    val today = AppClock.today()
+    val today by rememberToday()
 
     Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
         if (profile == null) {

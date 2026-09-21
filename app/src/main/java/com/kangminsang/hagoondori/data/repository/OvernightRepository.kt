@@ -32,6 +32,12 @@ class OvernightRepository @Inject constructor(
         return record
     }
 
+    /** 기존 외박 기록의 날짜·메모를 고친다(id는 그대로). 차수는 저장하지 않으므로 날짜순으로 다시 매겨진다. */
+    suspend fun updateRecord(record: OvernightRecord) {
+        dao.upsertRecord(record.toEntity())
+        syncStateRepository.markChanged()
+    }
+
     suspend fun deleteRecord(record: OvernightRecord) {
         dao.deleteRecord(record.toEntity())
         syncStateRepository.markChanged()

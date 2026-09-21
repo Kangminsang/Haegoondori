@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.model.DutyType
+import com.kangminsang.hagoondori.ui.common.rememberToday
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
 
@@ -47,7 +49,7 @@ fun MonthGrid(
     onDayClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val today = AppClock.today()
+    val today by rememberToday()
     val ink = MaterialTheme.colorScheme.onSurface
     Column(modifier = modifier) {
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -83,6 +85,7 @@ fun MonthGrid(
                             isSelected = day.date in selectedDates,
                             fillSelected = fillSelected,
                             isToday = day.date == today,
+                            today = today,
                             onClick = { onDayClick(day.date) },
                             modifier = Modifier.weight(1f),
                         )

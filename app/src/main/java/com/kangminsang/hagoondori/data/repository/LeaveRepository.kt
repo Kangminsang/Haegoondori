@@ -87,6 +87,12 @@ class LeaveRepository @Inject constructor(
         return usage
     }
 
+    /** 기존 사용 기록의 날짜·이름을 고친다(id는 그대로). */
+    suspend fun updateUsage(usage: LeaveUsage) {
+        dao.upsertUsage(usage.toEntity())
+        syncStateRepository.markChanged()
+    }
+
     suspend fun deleteUsage(usage: LeaveUsage) {
         dao.deleteUsage(usage.toEntity())
         syncStateRepository.markChanged()

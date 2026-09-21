@@ -49,6 +49,7 @@ fun LeaveManagementScreen(
                     onMoveType = viewModel::moveLeaveType,
                     onDeleteGrant = viewModel::deleteLeaveGrant,
                     onAddUsage = viewModel::addLeaveUsage,
+                    onUpdateUsage = viewModel::updateLeaveUsage,
                     onDeleteUsage = viewModel::deleteLeaveUsage,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -62,6 +63,8 @@ fun LeaveManagementScreen(
                 2 -> OvernightTab(
                     uiState = uiState,
                     onAddRecord = viewModel::addOvernightRecord,
+                    onUpdateRecord = viewModel::updateOvernightRecord,
+                    onDeleteRecord = viewModel::deleteOvernightRecord,
                     onAddForfeiture = viewModel::addOvernightForfeiture,
                     modifier = Modifier.fillMaxSize(),
                 )
