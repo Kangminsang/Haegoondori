@@ -30,3 +30,6 @@ captures/
 
 ### 장치 미리보기/동기화 개발용 산출물 ###
 calendar_preview/
+
+### 세션 종료 시 자동 생성되는 진행 로그 ###
+PROGRESS.md
