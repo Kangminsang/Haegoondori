@@ -30,6 +30,7 @@ import com.kangminsang.hagoondori.ui.duty.dutyTypeShortLabel
 import com.kangminsang.hagoondori.ui.theme.Galmuri11
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 
 /**
  * 달력 격자 한 칸. 장치 화면 설계서 v2(6장)의 셀 구성을 그대로 따른다.
@@ -45,12 +46,13 @@ fun DayCell(
     isSelected: Boolean,
     fillSelected: Boolean = false,
     isToday: Boolean,
+    today: LocalDate,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
     val isWeekend = day.date.dayOfWeek == DayOfWeek.SATURDAY || day.date.dayOfWeek == DayOfWeek.SUNDAY
-    val isPast = !isToday && day.date < AppClock.today()
+    val isPast = !isToday && day.date < today
     val numberColor = when {
         isToday -> colors.surface
         isWeekend || day.isHoliday -> colors.error

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.kangminsang.hagoondori.ui.common.Button
@@ -32,6 +33,7 @@ import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.ui.dashboard.LeaveTypeSummary
+import com.kangminsang.hagoondori.ui.common.rememberToday
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
@@ -44,6 +46,7 @@ fun LeaveTab(
     onMoveType: (leaveTypeId: String, delta: Int) -> Unit,
     onDeleteGrant: (LeaveGrant) -> Unit,
     onAddUsage: (leaveTypeId: String, startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
+    onUpdateUsage: (usage: LeaveUsage, startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
     onDeleteUsage: (LeaveUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -58,6 +61,7 @@ fun LeaveTab(
                 onAddGrant = { days, date, reason, expiry -> onAddGrant(summary.type.id, days, date, reason, expiry) },
                 onDeleteGrant = onDeleteGrant,
                 onAddUsage = { start, end, label -> onAddUsage(summary.type.id, start, end, label) },
+                onUpdateUsage = onUpdateUsage,
                 onDeleteUsage = onDeleteUsage,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
@@ -75,6 +79,7 @@ private fun LeaveTypeCard(
     onAddGrant: (days: Int, grantedDate: LocalDate, reason: String?, expiryDate: LocalDate?) -> Unit,
     onDeleteGrant: (LeaveGrant) -> Unit,
     onAddUsage: (startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
+    onUpdateUsage: (usage: LeaveUsage, startDate: LocalDate, endDate: LocalDate, label: String?) -> Unit,
     onDeleteUsage: (LeaveUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -155,6 +160,7 @@ private fun LeaveTypeCard(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
                 )
+                var editingUsageId by remember { mutableStateOf<String?>(null) }
                 usages.sortedByDescending { it.startDate }.forEach { usage ->
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -162,9 +168,25 @@ private fun LeaveTypeCard(
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
+                        IconButton(onClick = { editingUsageId = if (editingUsageId == usage.id) null else usage.id }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "수정")
+                        }
                         IconButton(onClick = { onDeleteUsage(usage) }) {
                             Icon(Icons.Filled.Close, contentDescription = "삭제")
                         }
+                    }
+                    if (editingUsageId == usage.id) {
+                        UsageForm(
+                            initialStart = usage.startDate,
+                            initialEnd = usage.endDate,
+                            initialLabel = usage.label.orEmpty(),
+                            submitText = "수정 저장",
+                            onCancel = { editingUsageId = null },
+                            onSubmit = { start, end, label ->
+                                onUpdateUsage(usage, start, end, label)
+                                editingUsageId = null
+                            },
+                        )
                     }
                 }
             }
@@ -176,7 +198,7 @@ private fun LeaveTypeCard(
 @Composable
 private fun GrantRow(status: LeaveCalculator.GrantStatus, onDelete: () -> Unit) {
     val grant = status.grant
-    val today = AppClock.today()
+    val today by rememberToday()
     val expiry = grant.expiryDate
     val isExpired = expiry != null && expiry < today
     val statusText = when {
@@ -233,24 +255,35 @@ private fun GrantForm(onSubmit: (days: Int, date: LocalDate, reason: String?, ex
 }
 
 @Composable
-private fun UsageForm(onSubmit: (start: LocalDate, end: LocalDate, label: String?) -> Unit) {
-    var start by remember { mutableStateOf<LocalDate?>(AppClock.today()) }
-    var end by remember { mutableStateOf<LocalDate?>(AppClock.today()) }
-    var label by remember { mutableStateOf("") }
+private fun UsageForm(
+    onSubmit: (start: LocalDate, end: LocalDate, label: String?) -> Unit,
+    initialStart: LocalDate = AppClock.today(),
+    initialEnd: LocalDate = AppClock.today(),
+    initialLabel: String = "",
+    submitText: String = "저장",
+    onCancel: (() -> Unit)? = null,
+) {
+    var start by remember { mutableStateOf<LocalDate?>(initialStart) }
+    var end by remember { mutableStateOf<LocalDate?>(initialEnd) }
+    var label by remember { mutableStateOf(initialLabel) }
 
     Column(modifier = Modifier.padding(top = 8.dp)) {
         DateTextField("시작일", start, { start = it }, modifier = Modifier.fillMaxWidth())
         DateTextField("종료일(포함)", end, { end = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("이름(선택)") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-        Button(
-            onClick = {
-                val startDate = start
-                val endDate = end
-                if (startDate != null && endDate != null && endDate >= startDate) {
-                    onSubmit(startDate, endDate, label.ifBlank { null })
-                }
-            },
-            modifier = Modifier.padding(top = 8.dp),
-        ) { Text("저장") }
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                onClick = {
+                    val startDate = start
+                    val endDate = end
+                    if (startDate != null && endDate != null && endDate >= startDate) {
+                        onSubmit(startDate, endDate, label.ifBlank { null })
+                    }
+                },
+            ) { Text(submitText) }
+            if (onCancel != null) {
+                TextButton(onClick = onCancel, modifier = Modifier.padding(start = 8.dp)) { Text("취소") }
+            }
+        }
     }
 }

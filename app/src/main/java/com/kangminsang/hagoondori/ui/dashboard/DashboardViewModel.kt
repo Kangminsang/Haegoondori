@@ -26,6 +26,7 @@ import com.kangminsang.hagoondori.data.repository.PassRepository
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import com.kangminsang.hagoondori.data.repository.SyncStateRepository
 import com.kangminsang.hagoondori.util.AppClock
+import kotlinx.datetime.LocalDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -64,7 +65,7 @@ class DashboardViewModel @Inject constructor(
         ),
         combine(combatRestRepository.observeGrants(), combatRestRepository.observeUsages(), ::CombatRestData),
         combine(overnightRepository.observeRecords(), overnightRepository.observeForfeitures(), ::OvernightData),
-        combine(passRepository.observeAll(), syncStateRepository.observe(), ::PassAndSyncData),
+        combine(passRepository.observeAll(), syncStateRepository.observe(), AppClock.todayFlow(), ::PassAndSyncData),
     ) { profile, leaveData, combatRestData, overnightData, passAndSync ->
         buildUiState(profile, leaveData, combatRestData, overnightData, passAndSync)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
@@ -72,7 +73,7 @@ class DashboardViewModel @Inject constructor(
     private data class LeaveData(val types: List<LeaveType>, val grants: List<LeaveGrant>, val usages: List<LeaveUsage>)
     private data class CombatRestData(val grants: List<CombatRestGrant>, val usages: List<CombatRestUsage>)
     private data class OvernightData(val records: List<OvernightRecord>, val forfeitures: List<OvernightForfeiture>)
-    private data class PassAndSyncData(val records: List<PassRecord>, val syncState: SyncState)
+    private data class PassAndSyncData(val records: List<PassRecord>, val syncState: SyncState, val today: LocalDate)
 
     private fun buildUiState(
         profile: UserProfile?,
@@ -81,7 +82,8 @@ class DashboardViewModel @Inject constructor(
         overnightData: OvernightData,
         passAndSync: PassAndSyncData,
     ): DashboardUiState {
-        val today = AppClock.today()
+        // 자정이 지나면 todayFlow가 새 날짜를 내보내 이 함수가 다시 호출된다(D-day 등이 날짜에서 파생되므로).
+        val today = passAndSync.today
 
         val overnightSchedule = profile?.firstOvernightDate?.let { first ->
             OvernightScheduleCalculator.buildSchedule(
@@ -94,7 +96,7 @@ class DashboardViewModel @Inject constructor(
 
         val leaveSummaries = leaveData.types.map { type ->
             val s = LeaveCalculator.summarize(
-                type, leaveData.grants, leaveData.usages, AppClock.today(),
+                type, leaveData.grants, leaveData.usages, today,
                 overnightRecords = overnightData.records,
                 nextOvernightDate = overnightSchedule?.nextScheduledDate,
             )

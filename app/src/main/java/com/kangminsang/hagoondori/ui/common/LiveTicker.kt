@@ -14,6 +14,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnit
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 
 /**
  * 화면이 보이는 동안 [intervalMillis]마다 갱신되는 현재 시각. 프레임 시계를 기다리므로 앱이 화면에서
@@ -31,6 +32,12 @@ fun rememberLiveNow(intervalMillis: Long = 50L): State<Instant> = produceState(A
             }
         }
     }
+}
+
+/** 자정에 값이 바뀌는 오늘 날짜. 오래 켜 둔 화면에서 "오늘"을 기준으로 그리는 부분에 쓴다. */
+@Composable
+fun rememberToday(): State<LocalDate> = produceState(AppClock.today()) {
+    AppClock.todayFlow().collect { value = it }
 }
 
 /**

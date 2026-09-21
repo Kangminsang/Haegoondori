@@ -55,7 +55,7 @@ class LeaveManagementViewModel @Inject constructor(
         combine(leaveRepository.observeTypes(), leaveRepository.observeAllGrants(), leaveRepository.observeAllUsages(), ::LeaveData),
         combine(combatRestRepository.observeGrants(), combatRestRepository.observeUsages(), ::CombatRestData),
         combine(overnightRepository.observeRecords(), overnightRepository.observeForfeitures(), ::OvernightData),
-        combine(passRepository.observeAll(), holidayRepository.observeAll(), ::PassHolidayData),
+        combine(passRepository.observeAll(), holidayRepository.observeAll(), AppClock.todayFlow(), ::PassHolidayData),
     ) { profile, leaveData, combatRestData, overnightData, passHoliday ->
         build(profile, leaveData, combatRestData, overnightData, passHoliday)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LeaveManagementUiState())
@@ -63,7 +63,7 @@ class LeaveManagementViewModel @Inject constructor(
     private data class LeaveData(val types: List<LeaveType>, val grants: List<LeaveGrant>, val usages: List<LeaveUsage>)
     private data class CombatRestData(val grants: List<CombatRestGrant>, val usages: List<CombatRestUsage>)
     private data class OvernightData(val records: List<OvernightRecord>, val forfeitures: List<OvernightForfeiture>)
-    private data class PassHolidayData(val records: List<PassRecord>, val holidays: List<Holiday>)
+    private data class PassHolidayData(val records: List<PassRecord>, val holidays: List<Holiday>, val today: LocalDate)
 
     private fun build(
         profile: UserProfile?,
@@ -78,7 +78,7 @@ class LeaveManagementViewModel @Inject constructor(
 
         val leaveSummaries = leaveData.types.map { type ->
             val s = LeaveCalculator.summarize(
-                type, leaveData.grants, leaveData.usages, AppClock.today(),
+                type, leaveData.grants, leaveData.usages, passHoliday.today,
                 overnightRecords = overnightData.records,
                 nextOvernightDate = overnightSchedule?.nextScheduledDate,
             )
@@ -160,6 +160,10 @@ class LeaveManagementViewModel @Inject constructor(
         viewModelScope.launch { leaveRepository.addUsage(leaveTypeId, startDate, endDate, label) }
     }
 
+    fun updateLeaveUsage(usage: LeaveUsage, startDate: LocalDate, endDate: LocalDate, label: String?) {
+        viewModelScope.launch { leaveRepository.updateUsage(usage.copy(startDate = startDate, endDate = endDate, label = label)) }
+    }
+
     fun deleteLeaveUsage(usage: LeaveUsage) {
         viewModelScope.launch { leaveRepository.deleteUsage(usage) }
     }
@@ -182,6 +186,14 @@ class LeaveManagementViewModel @Inject constructor(
 
     fun addOvernightRecord(date: LocalDate, endDate: LocalDate, memo: String?) {
         viewModelScope.launch { overnightRepository.addRecord(date, memo, endDate) }
+    }
+
+    fun updateOvernightRecord(record: OvernightRecord, date: LocalDate, endDate: LocalDate, memo: String?) {
+        viewModelScope.launch { overnightRepository.updateRecord(record.copy(date = date, endDate = endDate, memo = memo)) }
+    }
+
+    fun deleteOvernightRecord(record: OvernightRecord) {
+        viewModelScope.launch { overnightRepository.deleteRecord(record) }
     }
 
     /**
