@@ -10,6 +10,7 @@ import com.kangminsang.hagoondori.data.local.dao.HolidayDao
 import com.kangminsang.hagoondori.data.local.dao.LeaveDao
 import com.kangminsang.hagoondori.data.local.dao.OvernightDao
 import com.kangminsang.hagoondori.data.local.dao.PassDao
+import com.kangminsang.hagoondori.data.local.dao.SyncChangeLogDao
 import com.kangminsang.hagoondori.data.local.dao.SyncStateDao
 import com.kangminsang.hagoondori.data.local.dao.UserProfileDao
 import dagger.Module
@@ -31,7 +32,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HagoondoriDatabase =
         Room.databaseBuilder(context, HagoondoriDatabase::class.java, HagoondoriDatabase.DATABASE_NAME)
-            .addMigrations(HagoondoriDatabase.MIGRATION_1_2, HagoondoriDatabase.MIGRATION_2_3, HagoondoriDatabase.MIGRATION_3_4, HagoondoriDatabase.MIGRATION_4_5, HagoondoriDatabase.MIGRATION_5_6)
+            .addMigrations(HagoondoriDatabase.MIGRATION_1_2, HagoondoriDatabase.MIGRATION_2_3, HagoondoriDatabase.MIGRATION_3_4, HagoondoriDatabase.MIGRATION_4_5, HagoondoriDatabase.MIGRATION_5_6, HagoondoriDatabase.MIGRATION_6_7)
             .addCallback(HagoondoriDatabase.SEED_DEFAULT_LEAVE_TYPES)
             .build()
 
@@ -61,4 +62,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSyncStateDao(db: HagoondoriDatabase): SyncStateDao = db.syncStateDao()
+
+    @Provides
+    fun provideSyncChangeLogDao(db: HagoondoriDatabase): SyncChangeLogDao = db.syncChangeLogDao()
 }

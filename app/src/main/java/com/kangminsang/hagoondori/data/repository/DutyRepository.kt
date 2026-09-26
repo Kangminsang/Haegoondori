@@ -24,7 +24,7 @@ class DutyRepository @Inject constructor(
     suspend fun assign(date: LocalDate, type: DutyType): DutyAssignment {
         val assignment = DutyAssignment(IdGenerator.newId(), date, type)
         dao.upsert(assignment.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("근무 등록: $date")
         return assignment
     }
 
@@ -41,12 +41,12 @@ class DutyRepository @Inject constructor(
         val insertedRowIds = dao.insertAllIgnoringConflicts(entities)
         // OnConflictStrategy.IGNORE로 충돌해 삽입되지 않은 행은 rowId로 -1을 반환한다(Room 규약).
         val insertedCount = insertedRowIds.count { it != -1L }
-        if (insertedCount > 0) syncStateRepository.markChanged()
+        if (insertedCount > 0) syncStateRepository.markChanged("근무 일괄 등록: ${insertedCount}건")
         return insertedCount
     }
 
     suspend fun delete(assignment: DutyAssignment) {
         dao.delete(assignment.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("근무 취소: ${assignment.date}")
     }
 }

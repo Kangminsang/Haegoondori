@@ -2,6 +2,7 @@ package com.kangminsang.hagoondori.ui.dashboard
 
 import com.kangminsang.hagoondori.core.calc.OutingPeriod
 import com.kangminsang.hagoondori.core.model.LeaveType
+import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.core.calc.CombatRestSummary
@@ -51,4 +52,5 @@ data class DashboardUiState(
     /** 오늘 이후 가장 가까운 외출. 없으면 null. */
     val nextPass: LocalDate? = null,
     val syncState: SyncState = SyncState(),
+    val syncChangeLog: List<SyncChangeLogEntry> = emptyList(),
 )

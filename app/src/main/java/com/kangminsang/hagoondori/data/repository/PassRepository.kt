@@ -29,12 +29,12 @@ class PassRepository @Inject constructor(
     suspend fun addRecord(date: LocalDate, type: PassType, memo: String?): PassRecord {
         val record = PassRecord(IdGenerator.newId(), date, type, memo)
         dao.upsert(record.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외출 등록: $date")
         return record
     }
 
     suspend fun deleteRecord(record: PassRecord) {
         dao.delete(record.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외출 삭제: ${record.date}")
     }
 }

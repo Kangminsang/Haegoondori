@@ -28,19 +28,19 @@ class OvernightRepository @Inject constructor(
     suspend fun addRecord(date: LocalDate, memo: String?, endDate: LocalDate = date): OvernightRecord {
         val record = OvernightRecord(IdGenerator.newId(), date, memo, endDate)
         dao.upsertRecord(record.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외박 등록: $date")
         return record
     }
 
     /** 기존 외박 기록의 날짜·메모를 고친다(id는 그대로). 차수는 저장하지 않으므로 날짜순으로 다시 매겨진다. */
     suspend fun updateRecord(record: OvernightRecord) {
         dao.upsertRecord(record.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외박 수정: ${record.date}")
     }
 
     suspend fun deleteRecord(record: OvernightRecord) {
         dao.deleteRecord(record.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외박 삭제: ${record.date}")
     }
 
     fun observeForfeitures(): Flow<List<OvernightForfeiture>> =
@@ -54,12 +54,12 @@ class OvernightRepository @Inject constructor(
     suspend fun addForfeiture(slotIndex: Int, reason: String?, recordedDate: LocalDate?): OvernightForfeiture {
         val forfeiture = OvernightForfeiture(IdGenerator.newId(), slotIndex, reason, recordedDate)
         dao.upsertForfeiture(forfeiture.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외박 차수 소멸 등록: ${slotIndex + 1}차")
         return forfeiture
     }
 
     suspend fun deleteForfeiture(forfeiture: OvernightForfeiture) {
         dao.deleteForfeiture(forfeiture.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("외박 차수 소멸 취소: ${forfeiture.slotIndex + 1}차")
     }
 }

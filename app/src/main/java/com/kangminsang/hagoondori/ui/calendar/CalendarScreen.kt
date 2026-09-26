@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PassType
@@ -136,6 +137,7 @@ fun CalendarScreen(
                     uiState.selectedDayInfo,
                     onDeleteEvent = viewModel::deleteEvent,
                     onDeletePass = viewModel::deletePass,
+                    onDeleteDuty = viewModel::deleteDuty,
                     addingEvent = addingEvent,
                     onToggleAddEvent = { addingEvent = !addingEvent },
                 )
@@ -221,6 +223,7 @@ private fun SelectedDayDetail(
     day: CalendarDayInfo?,
     onDeleteEvent: (Event) -> Unit,
     onDeletePass: (PassRecord) -> Unit,
+    onDeleteDuty: (DutyAssignment) -> Unit,
     addingEvent: Boolean,
     onToggleAddEvent: () -> Unit,
 ) {
@@ -261,7 +264,18 @@ private fun SelectedDayDetail(
                 }
             }
         }
-        day.dutyAssignments.forEach { DetailLine("근무: ${dutyTypeLabel(it.type)}") }
+        day.dutyAssignments.forEach { assignment ->
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "근무: ${dutyTypeLabel(assignment.type)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { onDeleteDuty(assignment) }) {
+                    Icon(Icons.Filled.Close, contentDescription = "근무 취소")
+                }
+            }
+        }
         day.events.forEach { event ->
             EventLine(event, onDelete = { onDeleteEvent(event) })
         }

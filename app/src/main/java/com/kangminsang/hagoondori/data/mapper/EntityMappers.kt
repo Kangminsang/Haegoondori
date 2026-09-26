@@ -12,6 +12,7 @@ import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PromotionDates
+import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.local.entity.CombatRestGrantEntity
@@ -25,6 +26,7 @@ import com.kangminsang.hagoondori.data.local.entity.LeaveUsageEntity
 import com.kangminsang.hagoondori.data.local.entity.OvernightForfeitureEntity
 import com.kangminsang.hagoondori.data.local.entity.OvernightRecordEntity
 import com.kangminsang.hagoondori.data.local.entity.PassRecordEntity
+import com.kangminsang.hagoondori.data.local.entity.SyncChangeLogEntity
 import com.kangminsang.hagoondori.data.local.entity.SyncStateEntity
 import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
 
@@ -100,3 +102,5 @@ fun SyncState.toEntity(): SyncStateEntity = SyncStateEntity(
     lastSyncedAt = lastSyncedAt,
     pendingChangeCount = pendingChangeCount,
 )
+
+fun SyncChangeLogEntity.toCore(): SyncChangeLogEntry = SyncChangeLogEntry(id, description, occurredAt)

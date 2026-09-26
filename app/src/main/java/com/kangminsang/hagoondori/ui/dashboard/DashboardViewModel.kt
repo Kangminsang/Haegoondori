@@ -16,6 +16,7 @@ import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayAutoRefresh
@@ -65,7 +66,13 @@ class DashboardViewModel @Inject constructor(
         ),
         combine(combatRestRepository.observeGrants(), combatRestRepository.observeUsages(), ::CombatRestData),
         combine(overnightRepository.observeRecords(), overnightRepository.observeForfeitures(), ::OvernightData),
-        combine(passRepository.observeAll(), syncStateRepository.observe(), AppClock.todayFlow(), ::PassAndSyncData),
+        combine(
+            passRepository.observeAll(),
+            syncStateRepository.observe(),
+            syncStateRepository.observeChangeLog(),
+            AppClock.todayFlow(),
+            ::PassAndSyncData,
+        ),
     ) { profile, leaveData, combatRestData, overnightData, passAndSync ->
         buildUiState(profile, leaveData, combatRestData, overnightData, passAndSync)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
@@ -73,7 +80,12 @@ class DashboardViewModel @Inject constructor(
     private data class LeaveData(val types: List<LeaveType>, val grants: List<LeaveGrant>, val usages: List<LeaveUsage>)
     private data class CombatRestData(val grants: List<CombatRestGrant>, val usages: List<CombatRestUsage>)
     private data class OvernightData(val records: List<OvernightRecord>, val forfeitures: List<OvernightForfeiture>)
-    private data class PassAndSyncData(val records: List<PassRecord>, val syncState: SyncState, val today: LocalDate)
+    private data class PassAndSyncData(
+        val records: List<PassRecord>,
+        val syncState: SyncState,
+        val changeLog: List<SyncChangeLogEntry>,
+        val today: LocalDate,
+    )
 
     private fun buildUiState(
         profile: UserProfile?,
@@ -160,6 +172,7 @@ class DashboardViewModel @Inject constructor(
             nextOuting = nextOuting,
             nextPass = nextPass,
             syncState = passAndSync.syncState,
+            syncChangeLog = passAndSync.changeLog,
         )
     }
 }

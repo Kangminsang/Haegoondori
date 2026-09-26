@@ -81,6 +81,7 @@ fun DashboardScreen(
                     syncState = uiState.syncState,
                     now = AppClock.now(),
                     onSyncNow = onNavigateToSync,
+                    changeLog = uiState.syncChangeLog,
                 )
             }
 

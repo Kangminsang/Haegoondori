@@ -21,6 +21,6 @@ class ProfileRepository @Inject constructor(
 
     suspend fun save(profile: UserProfile) {
         dao.upsert(profile.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("복무 정보 저장")
     }
 }
