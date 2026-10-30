@@ -189,6 +189,15 @@ fun SettingsScreen(
                     ) { Text("지금 동기화") }
                 }
             }
+
+            DataTransferSection(
+                onExport = { uri, onResult -> viewModel.exportBackup(uri, onResult) },
+                onRestore = { uri, onResult -> viewModel.restoreBackup(uri, onResult) },
+                onRestart = viewModel::restartApp,
+                defaultFileName = viewModel::defaultBackupFileName,
+                showMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
