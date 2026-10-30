@@ -44,6 +44,11 @@ android {
         }
     }
 
+    // CI에서 디버그 키를 고정해 PC 빌드와 서로 덮어 설치할 수 있게 한다. 없으면 기본 디버그 키를 쓴다.
+    System.getenv("DEBUG_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }?.let {
+        signingConfigs.getByName("debug").storeFile = file(it)
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
