@@ -33,3 +33,7 @@ calendar_preview/
 
 ### 세션 종료 시 자동 생성되는 진행 로그 ###
 PROGRESS.md
+
+### 서명 키 ###
+*.jks
+*.keystore
