@@ -27,6 +27,20 @@ sdk.dir=C\:\\Users\\kangm\\AppData\\Local\\Android\\Sdk
 ./gradlew :app:assembleDebug  # app 모듈 디버그 APK 빌드
 ```
 
+## 릴리즈와 디버그 APK
+
+- **릴리즈**: `app/build.gradle.kts`의 `versionCode`/`versionName`을 올려 병합한 뒤
+  `v<versionName>` 태그를 push하면 `.github/workflows/release.yml`이 테스트 후 서명한
+  APK를 GitHub Release에 첨부한다. `v1.1.0-rc.1`처럼 `-` 접미사를 붙이면 프리릴리즈가 된다.
+- **필요한 Secrets**: `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`,
+  `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`. 키스토어와 비밀번호는 저장소 밖에 백업한다.
+  잃어버리면 이후 버전을 기존 앱 위에 설치할 수 없다.
+- **디버그 APK**: Actions의 `Build debug APK`를 수동 실행한다(`ref`로 대상 지정, 아티팩트
+  14일 보관). `DEBUG_KEYSTORE_BASE64`에 이 PC의 `~/.android/debug.keystore`를 등록해 두면
+  PC 빌드와 서로 덮어 설치할 수 있다.
+- **서명이 다른 앱으로 옮길 때**: 설정의 "데이터 이전"으로 내보낸 뒤 앱을 지우고 새 앱에서
+  가져온다. DB 스키마를 올리면 `HagoondoriDatabase.VERSION`을 함께 바꾼다.
+
 ## 에뮬레이터로 실기 테스트하기
 
 AVD `hagoondori_test`(Pixel 6 프로필, API 35 `google_apis` x86_64)가

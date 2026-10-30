@@ -1,10 +1,6 @@
 import java.util.Properties
 
 // app 모듈: Android(Compose + Hilt + Room). core에 의존한다.
-//
-// 이 모듈은 Android SDK가 필요하므로, dl.google.com이 차단된 이 개발 환경에서는
-// 실제로 빌드/실행 검증을 할 수 없다 (README.md의 "이 세션에서 검증 불가" 절 참고).
-// 코드는 신중하게 작성했지만, 로컬 Android Studio에서 최종 빌드 확인이 필요하다.
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -22,14 +18,35 @@ android {
         applicationId = "com.kangminsang.hagoondori"
         minSdk = 33
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // 릴리스 서명은 환경변수가 모두 있을 때만 구성한다 (비밀 값은 저장소에 두지 않는다).
+    val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+    val releaseKeystorePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+    if (!releaseKeystorePath.isNullOrBlank() &&
+        !releaseKeystorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
+    ) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
