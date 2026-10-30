@@ -1,7 +1,6 @@
 package com.kangminsang.hagoondori.di
 
 import android.content.Context
-import androidx.room.Room
 import com.kangminsang.hagoondori.data.local.HagoondoriDatabase
 import com.kangminsang.hagoondori.data.local.dao.CombatRestDao
 import com.kangminsang.hagoondori.data.local.dao.DutyDao
@@ -31,10 +30,7 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HagoondoriDatabase =
-        Room.databaseBuilder(context, HagoondoriDatabase::class.java, HagoondoriDatabase.DATABASE_NAME)
-            .addMigrations(HagoondoriDatabase.MIGRATION_1_2, HagoondoriDatabase.MIGRATION_2_3, HagoondoriDatabase.MIGRATION_3_4, HagoondoriDatabase.MIGRATION_4_5, HagoondoriDatabase.MIGRATION_5_6, HagoondoriDatabase.MIGRATION_6_7)
-            .addCallback(HagoondoriDatabase.SEED_DEFAULT_LEAVE_TYPES)
-            .build()
+        HagoondoriDatabase.build(context, HagoondoriDatabase.DATABASE_NAME)
 
     @Provides
     fun provideUserProfileDao(db: HagoondoriDatabase): UserProfileDao = db.userProfileDao()
