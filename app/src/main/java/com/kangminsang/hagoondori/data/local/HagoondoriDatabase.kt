@@ -1,6 +1,8 @@
 package com.kangminsang.hagoondori.data.local
 
+import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
@@ -52,7 +54,7 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
         SyncStateEntity::class,
         SyncChangeLogEntity::class,
     ],
-    version = 7,
+    version = HagoondoriDatabase.VERSION,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -70,6 +72,19 @@ abstract class HagoondoriDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "hagoondori.db"
+
+        /** 현재 스키마 버전. `@Database(version = ...)`과 같은 값이며, 백업 파일의 호환성 판정에도 쓴다. */
+        const val VERSION = 7
+
+        /**
+         * 마이그레이션 전체와 [SEED_DEFAULT_LEAVE_TYPES]를 갖춘 DB를 만든다. 앱 DB([DATABASE_NAME])와
+         * 백업 복원 때 임시 파일을 검증하려고 여는 DB가 같은 설정을 쓰도록 한 곳에 모아 둔다.
+         */
+        fun build(context: Context, name: String): HagoondoriDatabase =
+            Room.databaseBuilder(context, HagoondoriDatabase::class.java, name)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addCallback(SEED_DEFAULT_LEAVE_TYPES)
+                .build()
 
         /**
          * 휴가 종류 세 가지(정기/포상/위로)를 DB를 열 때마다 맞춰 둔다. 받을 수 있는 휴가가

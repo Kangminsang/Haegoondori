@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.kangminsang.hagoondori.core.export.ExportResult
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.UserProfile
+import com.kangminsang.hagoondori.data.backup.BackupResult
+import com.kangminsang.hagoondori.data.backup.DatabaseBackupManager
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayApiKeyStore
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayFetchResult
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayRemoteRepository
@@ -17,12 +19,14 @@ import com.kangminsang.hagoondori.export.DeviceFolderCheck
 import com.kangminsang.hagoondori.export.DeviceFolderState
 import com.kangminsang.hagoondori.export.DeviceStorageAccess
 import com.kangminsang.hagoondori.export.DeviceSyncService
+import com.kangminsang.hagoondori.util.AppClock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 import javax.inject.Inject
 
 /** 설정(F1/F15/F16/F17) 상태 결합 및 저장/공휴일 갱신/동기화 처리. */
@@ -35,6 +39,7 @@ class SettingsViewModel @Inject constructor(
     private val deviceStorageAccess: DeviceStorageAccess,
     private val deviceSyncService: DeviceSyncService,
     private val holidayApiKeyStore: HolidayApiKeyStore,
+    private val backupManager: DatabaseBackupManager,
 ) : ViewModel() {
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -101,4 +106,22 @@ class SettingsViewModel @Inject constructor(
     fun exportPreviewPayload(onResult: (ExportResult) -> Unit) {
         viewModelScope.launch { onResult(deviceSyncService.exportPreview()) }
     }
+
+    /** 내보내기 파일 선택 창의 기본 이름. 예: hagoondori-backup-20261030.db */
+    fun defaultBackupFileName(): String {
+        val d: LocalDate = AppClock.today()
+        return "hagoondori-backup-%04d%02d%02d.db".format(d.year, d.monthNumber, d.dayOfMonth)
+    }
+
+    /** DB를 [uri] 파일로 내보낸다(데이터 이전). */
+    fun exportBackup(uri: Uri, onResult: (BackupResult) -> Unit) {
+        viewModelScope.launch { onResult(backupManager.export(uri)) }
+    }
+
+    /** [uri] 파일로 현재 데이터를 모두 바꾼다. 성공하면 호출부가 [restartApp]을 불러야 한다. */
+    fun restoreBackup(uri: Uri, onResult: (BackupResult) -> Unit) {
+        viewModelScope.launch { onResult(backupManager.restore(uri)) }
+    }
+
+    fun restartApp() = backupManager.restartApp()
 }
