@@ -1,6 +1,7 @@
 package com.kangminsang.hagoondori.ui.settings
 
 import com.kangminsang.hagoondori.core.model.Holiday
+import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 
@@ -9,4 +10,5 @@ data class SettingsUiState(
     val profile: UserProfile? = null,
     val holidays: List<Holiday> = emptyList(),
     val syncState: SyncState = SyncState(),
+    val syncChangeLog: List<SyncChangeLogEntry> = emptyList(),
 )

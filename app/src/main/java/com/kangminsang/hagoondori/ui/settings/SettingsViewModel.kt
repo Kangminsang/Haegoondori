@@ -41,8 +41,14 @@ class SettingsViewModel @Inject constructor(
         profileRepository.observe(),
         holidayRepository.observeAll(),
         syncStateRepository.observe(),
-    ) { profile, holidays, syncState ->
-        SettingsUiState(profile = profile, holidays = holidays.sortedBy { it.date }, syncState = syncState)
+        syncStateRepository.observeChangeLog(),
+    ) { profile, holidays, syncState, changeLog ->
+        SettingsUiState(
+            profile = profile,
+            holidays = holidays.sortedBy { it.date },
+            syncState = syncState,
+            syncChangeLog = changeLog,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun saveProfile(profile: UserProfile) {

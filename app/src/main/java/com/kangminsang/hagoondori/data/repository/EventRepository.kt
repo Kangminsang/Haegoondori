@@ -34,17 +34,17 @@ class EventRepository @Inject constructor(
     ): Event {
         val event = Event(IdGenerator.newId(), title, startDate, endDate, isImportant, memo)
         dao.upsert(event.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("일정 추가: $title")
         return event
     }
 
     suspend fun update(event: Event) {
         dao.upsert(event.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("일정 수정: ${event.title}")
     }
 
     suspend fun delete(event: Event) {
         dao.delete(event.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("일정 삭제: ${event.title}")
     }
 }

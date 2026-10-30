@@ -29,13 +29,13 @@ class CombatRestRepository @Inject constructor(
     suspend fun addGrant(days: Int, grantedDate: LocalDate, reason: String?): CombatRestGrant {
         val grant = CombatRestGrant(IdGenerator.newId(), days, grantedDate, reason)
         dao.upsertGrant(grant.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("전투휴무 부여: ${days}일")
         return grant
     }
 
     suspend fun deleteGrant(grant: CombatRestGrant) {
         dao.deleteGrant(grant.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("전투휴무 부여 삭제: ${grant.days}일")
     }
 
     fun observeUsages(): Flow<List<CombatRestUsage>> =
@@ -44,12 +44,12 @@ class CombatRestRepository @Inject constructor(
     suspend fun addUsage(startDate: LocalDate, endDate: LocalDate, memo: String?): CombatRestUsage {
         val usage = CombatRestUsage(IdGenerator.newId(), startDate, endDate, memo)
         dao.upsertUsage(usage.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("전투휴무 사용 등록: $startDate~$endDate")
         return usage
     }
 
     suspend fun deleteUsage(usage: CombatRestUsage) {
         dao.deleteUsage(usage.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("전투휴무 사용 삭제: ${usage.startDate}~${usage.endDate}")
     }
 }

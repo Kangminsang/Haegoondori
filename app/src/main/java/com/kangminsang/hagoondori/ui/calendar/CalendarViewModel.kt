@@ -148,6 +148,10 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch { eventRepository.delete(event) }
     }
 
+    fun deleteDuty(assignment: DutyAssignment) {
+        viewModelScope.launch { dutyRepository.delete(assignment) }
+    }
+
     // ---- 근무 일괄 입력 (F6) ----
     // 당직표가 한 달치가 한 번에 나오는 근무 환경 특성상, 여러 날짜를 골라 한 번에 저장한다(스펙 4.13절).
 

@@ -30,14 +30,14 @@ class LeaveRepository @Inject constructor(
     suspend fun addType(name: String, cap: Int?, overflowBehavior: OverflowBehavior): LeaveType {
         val type = LeaveType(IdGenerator.newId(), name, cap, overflowBehavior)
         dao.upsertType(type.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 종류 추가: $name")
         return type
     }
 
     /** 기존 종류 수정(이름/상한/초과처리 변경)에 쓴다 - id가 이미 정해져 있는 경우. */
     suspend fun upsertType(type: LeaveType) {
         dao.upsertType(type.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 종류 수정: ${type.name}")
     }
 
     /** 휴가 종류 표시 순서를 [orderedTypeIds] 순서대로 다시 매긴다. 장치 페이로드와 무관해 동기화 대기 건수는 올리지 않는다. */
@@ -47,7 +47,7 @@ class LeaveRepository @Inject constructor(
 
     suspend fun deleteType(type: LeaveType) {
         dao.deleteType(type.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 종류 삭제: ${type.name}")
     }
 
     fun observeAllGrants(): Flow<List<LeaveGrant>> =
@@ -65,13 +65,13 @@ class LeaveRepository @Inject constructor(
     ): LeaveGrant {
         val grant = LeaveGrant(IdGenerator.newId(), leaveTypeId, days, grantedDate, reason, expiryDate)
         dao.upsertGrant(grant.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 부여: ${days}일")
         return grant
     }
 
     suspend fun deleteGrant(grant: LeaveGrant) {
         dao.deleteGrant(grant.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 부여 삭제: ${grant.days}일")
     }
 
     fun observeAllUsages(): Flow<List<LeaveUsage>> =
@@ -83,18 +83,18 @@ class LeaveRepository @Inject constructor(
     suspend fun addUsage(leaveTypeId: String, startDate: LocalDate, endDate: LocalDate, label: String?): LeaveUsage {
         val usage = LeaveUsage(IdGenerator.newId(), leaveTypeId, startDate, endDate, label)
         dao.upsertUsage(usage.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 사용 등록: $startDate~$endDate")
         return usage
     }
 
     /** 기존 사용 기록의 날짜·이름을 고친다(id는 그대로). */
     suspend fun updateUsage(usage: LeaveUsage) {
         dao.upsertUsage(usage.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 사용 수정: ${usage.startDate}~${usage.endDate}")
     }
 
     suspend fun deleteUsage(usage: LeaveUsage) {
         dao.deleteUsage(usage.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("휴가 사용 삭제: ${usage.startDate}~${usage.endDate}")
     }
 }

@@ -12,6 +12,7 @@ import com.kangminsang.hagoondori.data.local.dao.HolidayDao
 import com.kangminsang.hagoondori.data.local.dao.LeaveDao
 import com.kangminsang.hagoondori.data.local.dao.OvernightDao
 import com.kangminsang.hagoondori.data.local.dao.PassDao
+import com.kangminsang.hagoondori.data.local.dao.SyncChangeLogDao
 import com.kangminsang.hagoondori.data.local.dao.SyncStateDao
 import com.kangminsang.hagoondori.data.local.dao.UserProfileDao
 import com.kangminsang.hagoondori.data.local.entity.CombatRestGrantEntity
@@ -25,6 +26,7 @@ import com.kangminsang.hagoondori.data.local.entity.LeaveUsageEntity
 import com.kangminsang.hagoondori.data.local.entity.OvernightForfeitureEntity
 import com.kangminsang.hagoondori.data.local.entity.OvernightRecordEntity
 import com.kangminsang.hagoondori.data.local.entity.PassRecordEntity
+import com.kangminsang.hagoondori.data.local.entity.SyncChangeLogEntity
 import com.kangminsang.hagoondori.data.local.entity.SyncStateEntity
 import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
 
@@ -48,8 +50,9 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
         DutyAssignmentEntity::class,
         HolidayEntity::class,
         SyncStateEntity::class,
+        SyncChangeLogEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -63,6 +66,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
     abstract fun dutyDao(): DutyDao
     abstract fun holidayDao(): HolidayDao
     abstract fun syncStateDao(): SyncStateDao
+    abstract fun syncChangeLogDao(): SyncChangeLogDao
 
     companion object {
         const val DATABASE_NAME = "hagoondori.db"
@@ -97,6 +101,16 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         }
 
         private data class LeaveSeed(val id: String, val name: String, val cap: Int?, val fixedDays: Int?)
+
+        /** 동기화 대기 변경사항을 "무엇이 바뀌었는지" 목록으로 보여주기 위한 표(F18). */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sync_change_log` (`id` TEXT NOT NULL, " +
+                        "`description` TEXT NOT NULL, `occurredAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+            }
+        }
 
         /**
          * 진급일을 계급별(일병·상병·병장) 세 칸으로 나눈다. 기존의 단일 진급 예정일은 입대일로부터 며칠

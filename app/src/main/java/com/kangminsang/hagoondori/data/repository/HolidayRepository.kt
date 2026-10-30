@@ -32,17 +32,17 @@ class HolidayRepository @Inject constructor(
         val existing = dao.getAll().map { it.toCore() }.toSet()
         val changed = holidays.any { it !in existing }
         dao.upsertAll(holidays.map { it.toEntity() })
-        if (changed) syncStateRepository.markChanged()
+        if (changed) syncStateRepository.markChanged("공휴일 정보 갱신")
     }
 
     /** 사용자 수동 입력(확보 우선순위의 최후 수단, 4.14절). */
     suspend fun addManual(holiday: Holiday) {
         dao.upsert(holiday.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("공휴일 수동 추가: ${holiday.name} (${holiday.date})")
     }
 
     suspend fun delete(holiday: Holiday) {
         dao.delete(holiday.toEntity())
-        syncStateRepository.markChanged()
+        syncStateRepository.markChanged("공휴일 삭제: ${holiday.name} (${holiday.date})")
     }
 }
