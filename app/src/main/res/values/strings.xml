@@ -5,7 +5,7 @@
     <!-- 홈 화면 요약 위젯 -->
     <string name="widget_summary_label">하고운도리 요약</string>
     <string name="widget_summary_description">전역 D-day와 오늘 근무, 다음 출타를 보여 줍니다</string>
-    <string name="widget_empty_hint">앱에서 복무 정보를 입력하세요</string>
+    <string name="widget_empty_hint">앱에서 복무 정보를\n입력하세요</string>
     <string name="widget_today">오늘</string>
     <string name="widget_row_promotion">다음 진급</string>
     <string name="widget_row_outing">다음 출타</string>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 프로필이 없을 때(복무 정보 미입력) 보이는 안내. 크기와 무관하게 하나만 쓴다. -->
+<!-- 프로필이 없을 때(복무 정보 미입력) 보이는 안내. 크기와 무관하게 하나만 쓴다. 글자는 렌더러가 그린 비트맵이다. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -7,14 +7,11 @@
     android:background="@drawable/widget_background"
     android:padding="12dp">
 
-    <TextView
-        android:layout_width="match_parent"
+    <ImageView
+        android:id="@+id/hint"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:fontFamily="@font/galmuri11"
-        android:gravity="center"
-        android:includeFontPadding="false"
-        android:text="@string/widget_empty_hint"
-        android:textColor="@color/widget_ink"
-        android:textSize="13sp" />
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter" />
 </FrameLayout>

@@ -2,6 +2,7 @@
 <!--
     요약 위젯 설정. 크기 조절은 가로·세로 모두 가능하며, RemoteViews(크기별 Map)가
     실제 크기에 맞는 레이아웃을 고른다(SummaryWidgetProvider/WidgetRenderer 참고).
+    선택기 미리보기는 비트맵 없이 그리는 TextView 버전(widget_summary_preview)을 쓴다.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
@@ -14,5 +15,5 @@
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_summary_small"
-    android:previewLayout="@layout/widget_summary_wide"
+    android:previewLayout="@layout/widget_summary_preview"
     android:description="@string/widget_summary_description" />
