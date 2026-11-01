@@ -8,6 +8,7 @@ import com.kangminsang.hagoondori.data.local.dao.LeaveDao
 import com.kangminsang.hagoondori.data.mapper.toCore
 import com.kangminsang.hagoondori.data.mapper.toEntity
 import com.kangminsang.hagoondori.data.util.IdGenerator
+import com.kangminsang.hagoondori.widget.WidgetRefresher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
@@ -23,6 +24,7 @@ import javax.inject.Singleton
 class LeaveRepository @Inject constructor(
     private val dao: LeaveDao,
     private val syncStateRepository: SyncStateRepository,
+    private val widgetRefresher: WidgetRefresher,
 ) {
     fun observeTypes(): Flow<List<LeaveType>> =
         dao.observeTypes().map { list -> list.map { it.toCore() } }
@@ -52,9 +54,13 @@ class LeaveRepository @Inject constructor(
         syncStateRepository.markChanged("휴가 종류 수정: ${type.name}")
     }
 
-    /** 휴가 종류 표시 순서를 [orderedTypeIds] 순서대로 다시 매긴다. 장치 페이로드와 무관해 동기화 대기 건수는 올리지 않는다. */
+    /**
+     * 휴가 종류 표시 순서를 [orderedTypeIds] 순서대로 다시 매긴다. 장치 페이로드와 무관해 동기화 대기 건수는 올리지 않는다.
+     * 다만 위젯의 잔여 줄은 이 순서를 따르므로 위젯만 다시 그린다([SyncStateRepository.markChanged]를 거치지 않는다).
+     */
     suspend fun reorderTypes(orderedTypeIds: List<String>) {
         orderedTypeIds.forEachIndexed { index, id -> dao.updateTypeSortOrder(id, index) }
+        widgetRefresher.refresh()
     }
 
     suspend fun deleteType(type: LeaveType) {
