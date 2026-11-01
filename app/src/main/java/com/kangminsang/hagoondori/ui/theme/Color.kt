@@ -7,8 +7,8 @@ import androidx.compose.ui.graphics.Color
 // 것은 모양(도형)으로 바꿨다 - 장치에서 흑백 도형과 글자로 구분하는 것과 같은 방식이다.
 // core 데이터 모델에는 색상 개념이 전혀 없다(6.4절 규칙 3).
 
-/** 종이. e-ink 패널의 흰 바탕처럼 살짝 따뜻한 흰색. */
-val Paper = Color(0xFFF1F0EA)
+/** 종이. 신문 용지처럼 회색이 살짝 도는 따뜻한 흰색. */
+val Paper = Color(0xFFE6E4DD)
 
 /** 잉크. 순수 검정보다 약간 눌린 검정(패널의 검정이 완전한 검정이 아닌 것과 비슷하다). */
 val Ink = Color(0xFF1B1B1B)
@@ -18,4 +18,4 @@ val InkRed = Color(0xFFB3312C)
 
 /** 비활성/배경 격자용. 장치에서 디더링된 회색에 해당하는 유일한 중간 톤. */
 val InkGray = Color(0xFF8A8880)
-val PaperShade = Color(0xFFE4E1D8)
+val PaperShade = Color(0xFFD7D4CA)
