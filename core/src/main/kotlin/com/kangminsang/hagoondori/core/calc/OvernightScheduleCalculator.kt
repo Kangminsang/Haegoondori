@@ -103,4 +103,49 @@ object OvernightScheduleCalculator {
             forfeitedSlots = forfeitedSlots,
         )
     }
+
+    /**
+     * 전역 전에 남은 외박 목록 (화면의 "전역까지 남은 외박" 카드용). 결과는 [RemainingOvernight.slotIndex] 오름차순이다.
+     *
+     * - 이미 등록한 외박 중 오늘 이후 날짜인 기록은 [RemainingOvernightStatus.RECORDED]로 포함한다.
+     *   이 차수는 [OvernightSchedule.nextSlotIndex]보다 앞에 있어서, 빼 버리면 남은 개수가 하나 모자란다.
+     * - 아직 나가지 않은 차수는 [OvernightSchedule.nextSlotIndex]부터 소멸 차수를 뺀 예정일로 채운다.
+     *   예정일이 오늘보다 앞이면 [RemainingOvernightStatus.OVERDUE], 아니면 [RemainingOvernightStatus.SCHEDULED]다.
+     * - 전역일 당일([dischargeDate])과 그 이후는 모두 뺀다. 전역일에는 외박을 나갈 수 없다고 본다.
+     *   그래서 전역일 전날까지의 차수만 남는다.
+     *
+     * 예정 차수 시퀀스는 무한하므로 [takeWhile]로 전역일 전에서 끊는다.
+     */
+    fun remainingUntilDischarge(
+        firstOvernightDate: LocalDate,
+        cycleWeeks: Int,
+        schedule: OvernightSchedule,
+        dischargeDate: LocalDate,
+        today: LocalDate,
+    ): List<RemainingOvernight> {
+        val recorded = schedule.matches
+            .filter { it.record.date >= today && it.record.date < dischargeDate }
+            .map { RemainingOvernight(it.slotIndex, it.record.date, RemainingOvernightStatus.RECORDED) }
+
+        val scheduled = effectiveSlots(schedule.forfeitedSlots)
+            .dropWhile { it < schedule.nextSlotIndex }
+            .map { slot ->
+                val date = scheduledDate(firstOvernightDate, cycleWeeks, slot)
+                RemainingOvernight(
+                    slotIndex = slot,
+                    date = date,
+                    status = if (date < today) RemainingOvernightStatus.OVERDUE else RemainingOvernightStatus.SCHEDULED,
+                )
+            }
+            .takeWhile { it.date < dischargeDate }
+            .toList()
+
+        return (recorded + scheduled).sortedBy { it.slotIndex }
+    }
 }
+
+/** 전역 전 외박 한 건의 상태. [RECORDED]=이미 등록됨, [SCHEDULED]=예정, [OVERDUE]=예정일이 지났는데 등록되지 않음. */
+enum class RemainingOvernightStatus { RECORDED, SCHEDULED, OVERDUE }
+
+/** 전역 전에 남은 외박 한 건. [date]는 등록된 날짜(RECORDED)이거나 예정일이다. */
+data class RemainingOvernight(val slotIndex: Int, val date: LocalDate, val status: RemainingOvernightStatus)

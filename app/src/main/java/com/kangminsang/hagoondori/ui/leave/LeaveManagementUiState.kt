@@ -2,6 +2,7 @@ package com.kangminsang.hagoondori.ui.leave
 
 import com.kangminsang.hagoondori.core.calc.CombatRestSummary
 import com.kangminsang.hagoondori.core.calc.OvernightSchedule
+import com.kangminsang.hagoondori.core.calc.RemainingOvernight
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.Holiday
@@ -38,6 +39,7 @@ data class LeaveManagementUiState(
     val overnightForfeitures: List<OvernightForfeiture> = emptyList(),
     val overnightSchedule: OvernightSchedule? = null,
     val upcomingSlotOptions: List<UpcomingSlotOption> = emptyList(),
+    val remainingOvernights: List<RemainingOvernight> = emptyList(),
 
     val passRecords: List<PassRecord> = emptyList(),
     val holidays: List<Holiday> = emptyList(),
