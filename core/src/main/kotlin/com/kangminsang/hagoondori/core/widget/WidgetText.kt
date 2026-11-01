@@ -42,6 +42,12 @@ object WidgetText {
     fun leaveRemainingLine(items: List<WidgetLeaveRemaining>): String? =
         items.takeIf { it.isNotEmpty() }?.joinToString(" · ") { "${it.shortName} ${it.remaining}" }
 
+    /** 휴가 종류 이름에서 끝의 "휴가"를 뗀다. 남는 글자가 없으면 원래 이름을 쓴다. 예: 포상휴가 → 포상. */
+    fun shortLeaveName(name: String): String {
+        val base = name.trim().removeSuffix("휴가").trim()
+        return base.ifEmpty { name }
+    }
+
     /** 진행률을 0~100 정수로 바꾼다. NaN은 0으로 본다. */
     fun progressPercent(percent: Double): Int =
         if (percent.isNaN()) 0 else percent.coerceIn(0.0, 100.0).roundToInt()

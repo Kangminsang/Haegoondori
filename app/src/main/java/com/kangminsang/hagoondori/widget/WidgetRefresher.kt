@@ -15,11 +15,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 요약 위젯을 다시 그리도록 요청한다. 데이터 저장소([com.kangminsang.hagoondori.data.repository.SyncStateRepository]
+ * 홈 화면 위젯(요약·달력)을 다시 그리도록 요청한다. 데이터 저장소([com.kangminsang.hagoondori.data.repository.SyncStateRepository]
  * 등)에서 호출하므로 Repository에는 의존하지 않는다 - 읽기는 위젯 제공자가 직접 한다.
  *
- * - [refresh]: 위젯이 있을 때만 제공자에 명시적 브로드캐스트를 보낸다.
- * - [scheduleMidnight]/[cancelMidnight]: 다음 Asia/Seoul 자정에 한 번 깨워 날짜가 바뀐 D-day를 다시 계산한다.
+ * - [refresh]: 위젯이 있는 제공자마다 명시적 브로드캐스트를 보낸다.
+ * - [scheduleMidnight]/[cancelMidnightIfNoWidgets]: 자정 알람은 하나만 쓴다. 알람이 울리면 [WidgetMidnightReceiver]가
+ *   [onMidnight]를 호출해 다음 자정을 다시 걸고 두 제공자에 자정 액션을 보낸다.
  *   정확 알람 권한을 쓰지 않으므로 기기 절전 상태에서는 자정 몇 분 뒤에 올 수 있다.
  */
 @Singleton
@@ -28,21 +29,24 @@ class WidgetRefresher @Inject constructor(
 ) {
 
     fun refresh() {
-        if (!hasWidgets()) return
-        context.sendBroadcast(
-            Intent(context, SummaryWidgetProvider::class.java).setAction(SummaryWidgetProvider.ACTION_REFRESH),
-        )
+        for (provider in PROVIDERS) {
+            if (hasWidgets(provider)) {
+                context.sendBroadcast(Intent(context, provider).setAction(WidgetActions.REFRESH))
+            }
+        }
     }
 
     /** 위젯이 있을 때만 다음 자정 알람을 건다. 같은 PendingIntent를 쓰므로 다시 불러도 한 개만 남는다. */
     fun scheduleMidnight() {
-        if (!hasWidgets()) return
+        if (!hasAnyWidget()) return
         val nextMidnight = AppClock.today().plus(1, DateTimeUnit.DAY).atStartOfDayIn(AppClock.timeZone)
         context.getSystemService(AlarmManager::class.java)
             .setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextMidnight.toEpochMilliseconds(), midnightIntent())
     }
 
-    fun cancelMidnight() {
+    /** 두 제공자에 남은 위젯이 하나도 없을 때만 자정 알람을 취소한다. 제공자의 onDisabled에서 부른다. */
+    fun cancelMidnightIfNoWidgets() {
+        if (hasAnyWidget()) return
         val pending = PendingIntent.getBroadcast(
             context,
             REQUEST_MIDNIGHT,
@@ -53,9 +57,20 @@ class WidgetRefresher @Inject constructor(
         pending.cancel()
     }
 
-    private fun hasWidgets(): Boolean =
+    /** 자정 알람이 울렸을 때: 다음 자정을 다시 걸고, 두 제공자에 자정 액션을 보낸다. */
+    fun onMidnight() {
+        if (!hasAnyWidget()) return
+        scheduleMidnight()
+        for (provider in PROVIDERS) {
+            context.sendBroadcast(Intent(context, provider).setAction(WidgetActions.MIDNIGHT))
+        }
+    }
+
+    private fun hasAnyWidget(): Boolean = PROVIDERS.any { hasWidgets(it) }
+
+    private fun hasWidgets(provider: Class<*>): Boolean =
         AppWidgetManager.getInstance(context)
-            .getAppWidgetIds(ComponentName(context, SummaryWidgetProvider::class.java))
+            .getAppWidgetIds(ComponentName(context, provider))
             .isNotEmpty()
 
     private fun midnightIntent(): PendingIntent =
@@ -67,9 +82,18 @@ class WidgetRefresher @Inject constructor(
         )
 
     private fun midnightIntentData(): Intent =
-        Intent(context, SummaryWidgetProvider::class.java).setAction(SummaryWidgetProvider.ACTION_MIDNIGHT)
+        Intent(context, WidgetMidnightReceiver::class.java).setAction(WidgetActions.MIDNIGHT)
 
     private companion object {
         const val REQUEST_MIDNIGHT = 1001
+
+        /** 위젯 제공자 목록. 새 제공자를 만들면 여기에도 넣는다. */
+        val PROVIDERS: List<Class<*>> = listOf(SummaryWidgetProvider::class.java, CalendarWidgetProvider::class.java)
     }
+}
+
+/** 위젯 제공자들이 같이 쓰는 앱 내부 액션. 시스템 액션은 각 제공자가 직접 받는다. */
+object WidgetActions {
+    const val REFRESH = "com.kangminsang.hagoondori.widget.action.REFRESH"
+    const val MIDNIGHT = "com.kangminsang.hagoondori.widget.action.MIDNIGHT"
 }

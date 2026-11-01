@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,9 @@ import kotlinx.datetime.LocalDate
 fun CalendarScreen(
     modifier: Modifier = Modifier,
     viewModel: CalendarViewModel = hiltViewModel(),
+    /** 홈 화면 위젯 등에서 온 열기 요청. 처리하면 [onOpenRequestHandled]로 되돌려 반복되지 않게 한다. */
+    openRequest: CalendarOpenRequest? = null,
+    onOpenRequestHandled: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -68,6 +72,14 @@ fun CalendarScreen(
     var addingEvent by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // 위젯에서 날짜를 골랐다면 근무 입력 모드를 끄고(입력 중이던 선택은 버린다) 그 날짜를 보여 준다.
+    LaunchedEffect(openRequest) {
+        val request = openRequest ?: return@LaunchedEffect
+        inputMode = false
+        request.date?.let(viewModel::showDate)
+        onOpenRequestHandled()
+    }
 
     Scaffold(modifier = modifier, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         Column(

@@ -98,7 +98,7 @@ object WidgetSummaryBuilder {
 
         val leaveRemaining = leaveTypes.map { type ->
             WidgetLeaveRemaining(
-                shortName = shortName(type.name),
+                shortName = WidgetText.shortLeaveName(type.name),
                 remaining = LeaveCalculator.summarize(
                     type, leaveGrants, leaveUsages, today,
                     overnightRecords = overnightRecords,
@@ -116,11 +116,5 @@ object WidgetSummaryBuilder {
             nextPass = nextPass,
             leaveRemaining = leaveRemaining,
         )
-    }
-
-    /** 이름 끝의 "휴가"를 뗀다. 남는 글자가 없으면 원래 이름을 그대로 쓴다. */
-    private fun shortName(name: String): String {
-        val base = name.trim().removeSuffix("휴가").trim()
-        return base.ifEmpty { name }
     }
 }

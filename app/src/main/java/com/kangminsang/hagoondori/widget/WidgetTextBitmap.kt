@@ -43,6 +43,9 @@ class WidgetTextBitmap @Inject constructor(
         }
     }
 
+    /** 위젯 글꼴 파일을 읽은 [Typeface]. 달력 위젯 비트맵처럼 직접 그리는 쪽이 같은 글꼴을 쓰도록 공유한다. */
+    fun typeface(font: WidgetFont): Typeface = typefaces.getValue(font)
+
     /**
      * [text]를 [font]·[sizeSp]·[colorRes]로 그린 비트맵을 돌려준다.
      *
@@ -54,7 +57,7 @@ class WidgetTextBitmap @Inject constructor(
     fun draw(text: String, font: WidgetFont, sizeSp: Float, colorRes: Int): Bitmap {
         val metrics = context.resources.displayMetrics
         val paint = TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
-            typeface = typefaces.getValue(font)
+            typeface = typeface(font)
             textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sizeSp, metrics)
             color = ContextCompat.getColor(context, colorRes)
             isFakeBoldText = font.fakeBold

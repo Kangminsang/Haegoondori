@@ -7,4 +7,6 @@
     <color name="widget_paper">#FFE6E4DD</color>
     <color name="widget_ink">#FF1B1B1B</color>
     <color name="widget_red">#FFB3312C</color>
+    <!-- 달력 위젯의 주 사이 구분선 색. 앱에는 없는 위젯 전용 회색이다. -->
+    <color name="widget_gray">#FF8A8880</color>
 </resources>

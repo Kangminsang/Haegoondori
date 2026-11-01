@@ -63,7 +63,8 @@ class SummaryWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDisabled(context: Context) {
-        widgetRefresher.cancelMidnight()
+        // 달력 위젯이 남아 있으면 자정 알람은 그대로 둔다.
+        widgetRefresher.cancelMidnightIfNoWidgets()
     }
 
     /** [appWidgetIds]가 null이면 이 제공자의 위젯 전부를 그린다. */
@@ -103,8 +104,12 @@ class SummaryWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        const val ACTION_REFRESH = "com.kangminsang.hagoondori.widget.action.REFRESH"
-        const val ACTION_MIDNIGHT = "com.kangminsang.hagoondori.widget.action.MIDNIGHT"
+        const val ACTION_REFRESH = WidgetActions.REFRESH
+
+        /**
+         * 이전 버전이 이 제공자로 걸어 둔 자정 알람이 한 번 울려도 처리하려고 남겨 둔다. 지금은 [WidgetMidnightReceiver]가 보낸다.
+         */
+        const val ACTION_MIDNIGHT = WidgetActions.MIDNIGHT
         private const val TAG = "SummaryWidget"
     }
 }
