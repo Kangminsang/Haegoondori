@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    달력 위젯. 달력 그림은 CalendarWidgetBitmap이 그린 비트맵 한 장(calendar_image)이고, 그 위에 투명 터치 영역을 얹는다.
+    두 쪽의 기하가 정확히 같아야 한다. 아래 dp 값은 CalendarWidgetBitmap의 상수와 일치해야 한다.
+      - 헤더 40dp: ◀ 중심 x=28dp, ▶ 중심 x=전체폭-28dp (각 56dp 터치 영역, 월 제목은 가운데)
+      - 요일 줄 22dp: 빈 공간(비트맵이 요일 글자를 그린다)
+      - 주 행 6개: 남은 높이를 보이는 주 수로 균등 분할(쓰지 않는 행은 GONE). 칸 폭 = 전체폭/7, 바깥 패딩 없음
+    RemoteViews가 허용하는 뷰(FrameLayout, LinearLayout, ImageView)만 쓴다.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/calendar_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:id="@+id/nav_prev"
+                android:layout_width="56dp"
+                android:layout_height="match_parent" />
+
+            <FrameLayout
+                android:id="@+id/nav_title"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" />
+
+            <FrameLayout
+                android:id="@+id/nav_next"
+                android:layout_width="56dp"
+                android:layout_height="match_parent" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="22dp" />
+
+        <LinearLayout
+            android:id="@+id/week_1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:id="@+id/week_2"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:id="@+id/week_3"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:id="@+id/week_4"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:id="@+id/week_5"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:id="@+id/week_6"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+    </LinearLayout>
+</FrameLayout>

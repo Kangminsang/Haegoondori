@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 바탕: 종이색 채움. 모서리는 홈 앱이 위젯에 쓰는 둥근 반경을 따라 잘리지 않게 시스템 값을 쓴다(API 31+, minSdk 33). 테두리는 없다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/widget_paper" />
+    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
+</shape>

@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">하고운도리</string>
+
+    <!-- 홈 화면 요약 위젯 -->
+    <string name="widget_summary_label">하고운도리 요약</string>
+    <string name="widget_summary_description">전역 D-day와 오늘 근무, 다음 출타를 보여 줍니다</string>
+    <string name="widget_calendar_label">하고운도리 달력</string>
+    <string name="widget_calendar_description">이번 달 근무와 일정을 크게 보여 줍니다</string>
+    <string name="widget_calendar_preview_title">2026년 11월</string>
+    <string name="widget_calendar_preview_weekdays">일 월 화 수 목 금 토</string>
+    <string name="widget_empty_hint">앱에서 복무 정보를\n입력하세요</string>
+    <string name="widget_today">오늘</string>
+    <string name="widget_row_promotion">다음 진급</string>
+    <string name="widget_row_outing">다음 출타</string>
+    <string name="widget_row_pass">다음 외출</string>
+    <string name="widget_row_leave">휴가 잔여</string>
 </resources>

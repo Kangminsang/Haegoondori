@@ -26,6 +26,7 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.Hagoondori"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -44,5 +45,45 @@
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <!--
+            홈 화면 요약 위젯. 자정 알람과 앱 내부 갱신은 명시적 인텐트로 받으므로 필터에 넣지 않는다.
+            새 권한은 쓰지 않는다.
+        -->
+        <receiver
+            android:name=".widget.SummaryWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_summary_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/summary_widget_info" />
+        </receiver>
+
+        <!-- 홈 화면 달력 위젯. 시스템 액션은 요약 위젯과 같고, 월 이동과 자정·갱신은 명시적 인텐트로 받는다. -->
+        <receiver
+            android:name=".widget.CalendarWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_widget_info" />
+        </receiver>
+
+        <!-- 자정 알람을 받는 앱 내부 수신자. 외부 앱은 보낼 수 없다. -->
+        <receiver
+            android:name=".widget.WidgetMidnightReceiver"
+            android:exported="false" />
     </application>
 </manifest>

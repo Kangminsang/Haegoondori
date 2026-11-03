@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    달력 위젯 설정. 가로·세로 모두 조절할 수 있다. 실제 레이아웃은 widget_calendar이고, 칸 배치는 비트맵이 정한다
+    (CalendarWidgetProvider에서 크기 옵션으로 비트맵 크기를 정한다). 선택기 미리보기는 TextView 버전을 쓴다.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="180dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="5"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_calendar"
+    android:previewLayout="@layout/widget_calendar_preview"
+    android:description="@string/widget_calendar_description" />

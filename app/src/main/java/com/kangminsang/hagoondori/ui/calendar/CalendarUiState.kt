@@ -19,6 +19,10 @@ data class CalendarDayInfo(
     val passRecords: List<PassRecord>,
     val events: List<Event>,
     val dutyAssignments: List<DutyAssignment>,
+    /** 이 날이 시작일인 휴가 종류 이름(끝의 '휴가'를 뗌). 홈 화면 위젯의 칸 글자에 쓴다. */
+    val startingLeaveNames: List<String> = emptyList(),
+    /** 이 날 외박을 나가기 시작했는지(외박 기록의 시작일). 홈 화면 위젯의 칸 글자에 쓴다. */
+    val overnightStarts: Boolean = false,
 ) {
     val hasLeave: Boolean get() = leaveNames.isNotEmpty()
 
@@ -38,3 +42,6 @@ data class CalendarUiState(
     val selectedDayInfo: CalendarDayInfo?
         get() = selectedDate?.let { selected -> days.firstOrNull { it.date == selected } }
 }
+
+/** 앱 밖(홈 화면 위젯 등)에서 달력을 열라는 요청. [date]가 null이면 달력 탭만 연다. */
+data class CalendarOpenRequest(val date: LocalDate?)

@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kangminsang.hagoondori.BuildConfig
 import com.kangminsang.hagoondori.core.export.ExportResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -200,6 +201,17 @@ fun SettingsScreen(
                 showMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("앱 정보", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "버전 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

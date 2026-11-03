@@ -192,6 +192,87 @@ class OvernightScheduleCalculatorTest {
         assertEquals(0, bySlot.getValue(3).delayDays)
         assertEquals(4, schedule.nextSlotIndex)
     }
+
+    // ---------------------------------------------------------------------
+    // remainingUntilDischarge: 전역 전 남은 외박 목록
+    // ---------------------------------------------------------------------
+
+    private fun remaining(
+        records: List<OvernightRecord>,
+        forfeitures: List<OvernightForfeiture>,
+        today: LocalDate,
+        discharge: LocalDate,
+    ): List<RemainingOvernight> {
+        val schedule = OvernightScheduleCalculator.buildSchedule(firstDate, cycleWeeks, records, forfeitures)
+        return OvernightScheduleCalculator.remainingUntilDischarge(firstDate, cycleWeeks, schedule, discharge, today)
+    }
+
+    @Test
+    fun `remaining - slot on discharge day is excluded`() {
+        // 전역일(05-07)이 3차 예정일과 같으면 3차는 빠지고 0~2차만 남는다.
+        val result = remaining(emptyList(), emptyList(), today = LocalDate(2025, 12, 1), discharge = slot(3))
+        assertEquals(listOf(0, 1, 2), result.map { it.slotIndex })
+    }
+
+    @Test
+    fun `remaining - slot on the day before discharge is included`() {
+        val result = remaining(emptyList(), emptyList(), today = LocalDate(2025, 12, 1), discharge = slot(3).plusDays(1))
+        assertEquals(listOf(0, 1, 2, 3), result.map { it.slotIndex })
+    }
+
+    @Test
+    fun `remaining - forfeited slot is excluded`() {
+        val result = remaining(
+            emptyList(),
+            listOf(OvernightForfeiture("f1", slotIndex = 1)),
+            today = LocalDate(2025, 12, 1),
+            discharge = LocalDate(2026, 7, 1),
+        )
+        assertEquals(listOf(0, 2, 3, 4), result.map { it.slotIndex })
+        assertEquals(listOf(slot(0), slot(2), slot(3), slot(4)), result.map { it.date })
+    }
+
+    @Test
+    fun `remaining - future record is RECORDED and past record is dropped`() {
+        // 0차(01-01), 1차(02-12)는 오늘(03-01)보다 전이라 목록에서 빠진다. 2차(03-26)는 오늘 이후라 등록됨으로 들어간다.
+        val records = listOf(
+            OvernightRecord("r0", slot(0)),
+            OvernightRecord("r1", slot(1)),
+            OvernightRecord("r2", slot(2)),
+        )
+        val result = remaining(records, emptyList(), today = LocalDate(2026, 3, 1), discharge = LocalDate(2026, 7, 1))
+        assertEquals(
+            listOf(
+                RemainingOvernight(2, slot(2), RemainingOvernightStatus.RECORDED),
+                RemainingOvernight(3, slot(3), RemainingOvernightStatus.SCHEDULED),
+                RemainingOvernight(4, slot(4), RemainingOvernightStatus.SCHEDULED),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `remaining - past scheduled slot is OVERDUE`() {
+        // 오늘(02-20)보다 앞선 0차(01-01), 1차(02-12)는 지연 상태, 2차 이후는 예정.
+        val result = remaining(emptyList(), emptyList(), today = LocalDate(2026, 2, 20), discharge = LocalDate(2026, 7, 1))
+        assertEquals(RemainingOvernightStatus.OVERDUE, result[0].status)
+        assertEquals(RemainingOvernightStatus.OVERDUE, result[1].status)
+        assertEquals(RemainingOvernightStatus.SCHEDULED, result[2].status)
+    }
+
+    @Test
+    fun `remaining - scheduled slot on today is SCHEDULED not OVERDUE`() {
+        // 0차(01-01)는 기록됐고 다음 차수는 오늘(02-12)이 예정일이다.
+        val records = listOf(OvernightRecord("r0", slot(0)))
+        val result = remaining(records, emptyList(), today = slot(1), discharge = LocalDate(2026, 7, 1))
+        assertEquals(RemainingOvernightStatus.SCHEDULED, result.first { it.slotIndex == 1 }.status)
+    }
+
+    @Test
+    fun `remaining - discharge before the first scheduled date gives empty list`() {
+        val result = remaining(emptyList(), emptyList(), today = LocalDate(2025, 12, 1), discharge = firstDate.plusDays(-10))
+        assertEquals(emptyList<RemainingOvernight>(), result)
+    }
 }
 
 /** 테스트 가독성을 위한 작은 날짜 유틸. n일 뒤(음수면 n일 전) 날짜를 반환한다. */

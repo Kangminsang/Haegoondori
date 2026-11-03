@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import com.kangminsang.hagoondori.data.local.entity.LeaveGrantEntity
 import com.kangminsang.hagoondori.data.local.entity.LeaveTypeEntity
 import com.kangminsang.hagoondori.data.local.entity.LeaveUsageEntity
@@ -18,8 +19,19 @@ interface LeaveDao {
     @Query("UPDATE leave_type SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateTypeSortOrder(id: String, sortOrder: Int)
 
+    /** 새 종류를 넣을 때 쓰는 다음 순번. 표가 비어 있으면 0이다. */
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM leave_type")
+    suspend fun maxTypeSortOrder(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertType(entity: LeaveTypeEntity)
+
+    /** 종류의 이름·상한·초과 처리·고정 일수를 고친다. 표시 순서(sortOrder)는 건드리지 않는다. */
+    @Query(
+        "UPDATE leave_type SET name = :name, cap = :cap, overflowBehavior = :overflowBehavior, " +
+            "fixedDays = :fixedDays WHERE id = :id",
+    )
+    suspend fun updateType(id: String, name: String, cap: Int?, overflowBehavior: OverflowBehavior, fixedDays: Int?)
 
     @Delete
     suspend fun deleteType(entity: LeaveTypeEntity)

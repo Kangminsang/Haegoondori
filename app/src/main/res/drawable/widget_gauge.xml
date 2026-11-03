@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    진행률 게이지. 바깥은 2dp 잉크 외곽선, 안쪽 여백 2dp, 채움은 잉크. 각진 모양이다.
+    채움 layer는 4dp(외곽선 2dp + 여백 2dp) 안쪽으로 밀어 넣고, ProgressBar의 level로 너비를 정한다.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_paper" />
+            <stroke android:width="2dp" android:color="@color/widget_ink" />
+        </shape>
+    </item>
+    <item
+        android:id="@android:id/progress"
+        android:bottom="4dp"
+        android:left="4dp"
+        android:right="4dp"
+        android:top="4dp">
+        <clip android:clipOrientation="horizontal" android:gravity="start">
+            <shape android:shape="rectangle">
+                <solid android:color="@color/widget_ink" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

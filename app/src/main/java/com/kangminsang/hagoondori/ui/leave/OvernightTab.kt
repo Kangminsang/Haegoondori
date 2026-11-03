@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.calc.DDayCalculator
+import com.kangminsang.hagoondori.core.calc.RemainingOvernight
+import com.kangminsang.hagoondori.core.calc.RemainingOvernightStatus
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.ui.common.rememberToday
@@ -65,6 +67,10 @@ fun OvernightTab(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+            }
+
+            uiState.profile?.let { profile ->
+                RemainingOvernightCard(remaining = uiState.remainingOvernights, dischargeDate = profile.dischargeDate)
             }
 
             if (schedule.matches.isNotEmpty()) {
@@ -149,6 +155,47 @@ fun OvernightTab(
                 options = uiState.upcomingSlotOptions,
                 onSubmit = { slotIndex, reason -> onAddForfeiture(slotIndex, reason, AppClock.today()); showForfeitureForm = false },
             )
+        }
+    }
+}
+
+/** 전역까지 남은 외박 목록 카드 (차수 번호 순, 등록됨/지연 표시). 달력·대시보드에는 쓰지 않는다. */
+@Composable
+private fun RemainingOvernightCard(remaining: List<RemainingOvernight>, dischargeDate: LocalDate) {
+    val today by rememberToday()
+    Card(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            when {
+                remaining.isEmpty() -> {
+                    Text("전역까지 남은 외박 0회", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "전역 전에 남은 외박 차수가 없습니다",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                else -> {
+                    Text("전역까지 남은 외박 ${remaining.size}회", style = MaterialTheme.typography.titleMedium)
+                    Text("전역일 $dischargeDate", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                    remaining.forEach { item ->
+                        val dDay = DDayCalculator.dDay(today, item.date)
+                        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${item.slotIndex + 1}차 · ${item.date} (${if (dDay >= 0) "D-$dDay" else "D+${-dDay}"})",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            when (item.status) {
+                                RemainingOvernightStatus.RECORDED ->
+                                    Text("등록됨", style = MaterialTheme.typography.bodyMedium)
+                                RemainingOvernightStatus.OVERDUE ->
+                                    Text("지연", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                                RemainingOvernightStatus.SCHEDULED -> Unit
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
