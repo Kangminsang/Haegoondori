@@ -74,7 +74,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         const val DATABASE_NAME = "hagoondori.db"
 
         /** 현재 스키마 버전. `@Database(version = ...)`과 같은 값이며, 백업 파일의 호환성 판정에도 쓴다. */
-        const val VERSION = 7
+        const val VERSION = 8
 
         /**
          * 마이그레이션 전체와 [SEED_DEFAULT_LEAVE_TYPES]를 갖춘 DB를 만든다. 앱 DB([DATABASE_NAME])와
@@ -82,40 +82,61 @@ abstract class HagoondoriDatabase : RoomDatabase() {
          */
         fun build(context: Context, name: String): HagoondoriDatabase =
             Room.databaseBuilder(context, HagoondoriDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                )
                 .addCallback(SEED_DEFAULT_LEAVE_TYPES)
                 .build()
 
         /**
-         * 휴가 종류 세 가지(정기/포상/위로)를 DB를 열 때마다 맞춰 둔다. 받을 수 있는 휴가가
-         * 사실상 이 셋뿐이라 종류를 직접 추가하는 화면을 두지 않는다. 정기휴가는 27일로
+         * 새 DB를 만들 때 기본 휴가 종류 세 가지(위로/정기/포상)를 넣는다. 정기휴가는 27일로
          * 총량이 고정돼 부여 기록이 필요 없고(fixedDays), 포상휴가(상한 17일, 부여를 기록하며
-         * 상한 초과분은 전투휴무로 전환)와 위로휴가는 부여 기록의 합이 총량이다. 같은 이름의
-         * 종류가 이미 있으면 새로 만들지 않고 고정 일수만 맞춘다. 휴가 종류는 장치 페이로드에 들어가지 않아 동기화 대기 건수는
-         * 올리지 않는다. 포상 초과분의 전투휴무 전환은 스펙 3.2.2절.
+         * 상한 초과분은 전투휴무로 전환)와 위로휴가는 부여 기록의 합이 총량이다. 이름과 고정 일수는
+         * 사용자가 바꿀 수 있으므로, DB를 열 때마다 다시 맞추지 않는다. 기존 DB는
+         * [MIGRATION_7_8]에서 한 번만 같은 정비를 거친다. 휴가 종류는 장치 페이로드에 들어가지 않아
+         * 동기화 대기 건수는 올리지 않는다. 포상 초과분의 전투휴무 전환은 스펙 3.2.2절.
          */
         val SEED_DEFAULT_LEAVE_TYPES = object : Callback() {
-            override fun onOpen(db: SupportSQLiteDatabase) {
-                listOf(
-                    LeaveSeed("leave-consolation", "위로휴가", cap = null, fixedDays = null),
-                    LeaveSeed("leave-regular", "정기휴가", cap = null, fixedDays = 27),
-                    LeaveSeed("leave-reward", "포상휴가", cap = 17, fixedDays = null),
-                ).forEachIndexed { index, seed ->
-                    val overflow = if (seed.cap != null) "CONVERT_TO_COMBAT_REST" else "NONE"
-                    db.execSQL(
-                        "INSERT INTO leave_type (id, name, cap, overflowBehavior, fixedDays, sortOrder) " +
-                            "SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM leave_type WHERE name = ?)",
-                        arrayOf<Any?>(seed.id, seed.name, seed.cap, overflow, seed.fixedDays, index, seed.name),
-                    )
-                    db.execSQL(
-                        "UPDATE leave_type SET fixedDays = ? WHERE name = ?",
-                        arrayOf<Any?>(seed.fixedDays, seed.name),
-                    )
-                }
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                seedDefaultLeaveTypes(db)
             }
         }
 
         private data class LeaveSeed(val id: String, val name: String, val cap: Int?, val fixedDays: Int?)
+
+        /**
+         * 기본 휴가 종류를 이름 기준으로 넣고 정정한다(이미 같은 이름이 있으면 새로 넣지 않는다).
+         * 새 DB의 onCreate와 [MIGRATION_7_8]에서만 호출한다 - 열 때마다 부르면 사용자가 바꾼 이름이 되돌아간다.
+         */
+        private fun seedDefaultLeaveTypes(db: SupportSQLiteDatabase) {
+            listOf(
+                LeaveSeed("leave-consolation", "위로휴가", cap = null, fixedDays = null),
+                LeaveSeed("leave-regular", "정기휴가", cap = null, fixedDays = 27),
+                LeaveSeed("leave-reward", "포상휴가", cap = 17, fixedDays = null),
+            ).forEachIndexed { index, seed ->
+                val overflow = if (seed.cap != null) "CONVERT_TO_COMBAT_REST" else "NONE"
+                db.execSQL(
+                    "INSERT INTO leave_type (id, name, cap, overflowBehavior, fixedDays, sortOrder) " +
+                        "SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM leave_type WHERE name = ?)",
+                    arrayOf<Any?>(seed.id, seed.name, seed.cap, overflow, seed.fixedDays, index, seed.name),
+                )
+                db.execSQL(
+                    "UPDATE leave_type SET fixedDays = ? WHERE name = ?",
+                    arrayOf<Any?>(seed.fixedDays, seed.name),
+                )
+            }
+        }
+
+        /**
+         * 기본 휴가 종류 시드를 기존 DB에 한 번 적용한다. 예전에는 DB를 열 때마다 시드를 맞춰서,
+         * 사용자가 이름을 바꾼 기본 종류가 다시 생기고 고정 일수도 되돌아갔다. 이 마이그레이션 이후로는
+         * 열 때마다 시드를 맞추지 않는다. 테이블 구조는 바뀌지 않는다.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                seedDefaultLeaveTypes(db)
+            }
+        }
 
         /** 동기화 대기 변경사항을 "무엇이 바뀌었는지" 목록으로 보여주기 위한 표(F18). */
         val MIGRATION_6_7 = object : Migration(6, 7) {

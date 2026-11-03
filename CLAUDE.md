@@ -38,6 +38,8 @@ sdk.dir=C\:\\Users\\kangm\\AppData\\Local\\Android\\Sdk
 - **디버그 APK**: Actions의 `Build debug APK`를 수동 실행한다(`ref`로 대상 지정, 아티팩트
   14일 보관). `DEBUG_KEYSTORE_BASE64`에 이 PC의 `~/.android/debug.keystore`를 등록해 두면
   PC 빌드와 서로 덮어 설치할 수 있다.
+- **디버그와 릴리즈 동시 설치**: 디버그 빌드의 패키지는 `com.kangminsang.hagoondori.debug`이고 앱 이름은
+  "하고운도리 디버그"다. 릴리즈 앱과 나란히 설치되며 DB와 설정은 따로 저장된다.
 - **서명이 다른 앱으로 옮길 때**: 설정의 "데이터 이전"으로 내보낸 뒤 앱을 지우고 새 앱에서
   가져온다. DB 스키마를 올리면 `HagoondoriDatabase.VERSION`을 함께 바꾼다.
 
@@ -72,7 +74,7 @@ done
 
 ```bash
 "$ADB" install -r app/build/outputs/apk/debug/app-debug.apk
-"$ADB" shell am start -n com.kangminsang.hagoondori/.MainActivity
+"$ADB" shell am start -n com.kangminsang.hagoondori.debug/com.kangminsang.hagoondori.MainActivity
 ```
 
 ### 조작
@@ -121,11 +123,11 @@ UI를 조작할 때마다 크래시 여부를 바로 확인한다:
 `calendar.txt` 등)은 `run-as` 없이 바로 읽을 수 있다:
 
 ```bash
-MSYS_NO_PATHCONV=1 "$ADB" shell cat /sdcard/Android/data/com.kangminsang.hagoondori/files/calendar_preview/calendar.txt
+MSYS_NO_PATHCONV=1 "$ADB" shell cat /sdcard/Android/data/com.kangminsang.hagoondori.debug/files/calendar_preview/calendar.txt
 ```
 
-앱 내부 저장소(`/data/data/com.kangminsang.hagoondori/...`)를 봐야 한다면
-`run-as com.kangminsang.hagoondori`가 필요하다.
+앱 내부 저장소(`/data/data/com.kangminsang.hagoondori.debug/...`)를 봐야 한다면
+`run-as com.kangminsang.hagoondori.debug`가 필요하다.
 
 ### 알아둘 점: 컴파일 성공 ≠ 화면이 맞게 그려짐
 

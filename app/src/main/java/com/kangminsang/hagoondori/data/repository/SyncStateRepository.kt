@@ -9,6 +9,7 @@ import com.kangminsang.hagoondori.data.mapper.toCore
 import com.kangminsang.hagoondori.data.mapper.toEntity
 import com.kangminsang.hagoondori.data.util.IdGenerator
 import com.kangminsang.hagoondori.util.AppClock
+import com.kangminsang.hagoondori.widget.WidgetRefresher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Instant
@@ -27,6 +28,7 @@ import javax.inject.Singleton
 class SyncStateRepository @Inject constructor(
     private val dao: SyncStateDao,
     private val changeLogDao: SyncChangeLogDao,
+    private val widgetRefresher: WidgetRefresher,
 ) {
     fun observe(): Flow<SyncState> = dao.observe().map { it?.toCore() ?: SyncState() }
 
@@ -36,11 +38,15 @@ class SyncStateRepository @Inject constructor(
     fun observeChangeLog(): Flow<List<SyncChangeLogEntry>> =
         changeLogDao.observeAll().map { list -> list.map { it.toCore() } }
 
-    /** 데이터 변경이 있을 때마다 호출한다. 미반영 변경 건수를 1 늘리고, [description]을 변경 내역에 남긴다. */
+    /**
+     * 데이터 변경이 있을 때마다 호출한다. 미반영 변경 건수를 1 늘리고, [description]을 변경 내역에 남긴다.
+     * 홈 화면 위젯도 같은 데이터를 보여 주므로 끝에서 다시 그리도록 요청한다.
+     */
     suspend fun markChanged(description: String) {
         val current = get()
         dao.upsert(current.copy(pendingChangeCount = current.pendingChangeCount + 1).toEntity())
         changeLogDao.insert(SyncChangeLogEntity(IdGenerator.newId(), description, AppClock.now()))
+        widgetRefresher.refresh()
     }
 
     /** 동기화 성공 시 호출한다. 미반영 변경 건수를 0으로 초기화하고, 변경 내역도 비운다. */

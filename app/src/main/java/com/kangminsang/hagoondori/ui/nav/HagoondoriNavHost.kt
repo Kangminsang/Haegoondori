@@ -12,6 +12,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.kangminsang.hagoondori.ui.calendar.CalendarOpenRequest
 import com.kangminsang.hagoondori.ui.calendar.CalendarScreen
 import com.kangminsang.hagoondori.ui.dashboard.DashboardScreen
 import com.kangminsang.hagoondori.ui.leave.LeaveManagementScreen
@@ -32,10 +34,23 @@ import com.kangminsang.hagoondori.ui.settings.SettingsScreen
  * 앱의 화면 전환 전체를 담당한다(스펙 5.1절). 하단 탭 4개로 구성된다.
  */
 @Composable
-fun HagoondoriNavHost() {
+fun HagoondoriNavHost(
+    /** 홈 화면 위젯 등에서 온 달력 열기 요청. 있으면 달력 탭으로 옮긴다. */
+    calendarRequest: CalendarOpenRequest? = null,
+    onCalendarRequestHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
     // 대시보드의 동기화 배너에서 설정으로 넘어올 때 "장치 연동" 카드까지 스크롤하라는 요청.
     var scrollToDeviceSection by remember { mutableStateOf(false) }
+
+    LaunchedEffect(calendarRequest) {
+        if (calendarRequest == null) return@LaunchedEffect
+        navController.navigate(HagoondoriDestination.Calendar.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     Scaffold(
         bottomBar = { HagoondoriBottomBar(navController) },
@@ -57,7 +72,9 @@ fun HagoondoriNavHost() {
                     },
                 )
             }
-            composable(HagoondoriDestination.Calendar.route) { CalendarScreen() }
+            composable(HagoondoriDestination.Calendar.route) {
+                CalendarScreen(openRequest = calendarRequest, onOpenRequestHandled = onCalendarRequestHandled)
+            }
             composable(HagoondoriDestination.Leave.route) { LeaveManagementScreen() }
             composable(HagoondoriDestination.Settings.route) {
                 SettingsScreen(

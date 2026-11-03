@@ -12,6 +12,7 @@ import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
@@ -118,6 +119,18 @@ class LeaveManagementViewModel @Inject constructor(
             emptyList()
         }
 
+        val remainingOvernights = if (profile?.firstOvernightDate != null && overnightSchedule != null) {
+            OvernightScheduleCalculator.remainingUntilDischarge(
+                firstOvernightDate = profile.firstOvernightDate!!,
+                cycleWeeks = profile.overnightCycleWeeks,
+                schedule = overnightSchedule,
+                dischargeDate = profile.dischargeDate,
+                today = passHoliday.today,
+            )
+        } else {
+            emptyList()
+        }
+
         return LeaveManagementUiState(
             profile = profile,
             leaveTypes = leaveData.types,
@@ -133,6 +146,7 @@ class LeaveManagementViewModel @Inject constructor(
             passRecords = passHoliday.records,
             holidays = passHoliday.holidays,
             upcomingSlotOptions = upcomingSlotOptions,
+            remainingOvernights = remainingOvernights,
         )
     }
 
@@ -150,6 +164,16 @@ class LeaveManagementViewModel @Inject constructor(
         if (from < 0 || to !in ids.indices) return
         ids.add(to, ids.removeAt(from))
         viewModelScope.launch { leaveRepository.reorderTypes(ids) }
+    }
+
+    /** 휴가 종류를 새로 만든다. 입력 검증은 호출하는 화면이 저장 전에 끝낸다. */
+    fun addLeaveType(name: String, cap: Int?, overflowBehavior: OverflowBehavior, fixedDays: Int?) {
+        viewModelScope.launch { leaveRepository.createType(name, cap, overflowBehavior, fixedDays) }
+    }
+
+    /** 휴가 종류의 이름·상한·초과 처리·고정 일수를 고친다. 표시 순서는 그대로 둔다. */
+    fun updateLeaveType(type: LeaveType) {
+        viewModelScope.launch { leaveRepository.updateType(type) }
     }
 
     fun deleteLeaveGrant(grant: LeaveGrant) {

@@ -2,7 +2,6 @@ package com.kangminsang.hagoondori.ui.calendar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kangminsang.hagoondori.core.calc.HolidayJudge
 import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
@@ -93,28 +92,20 @@ class CalendarViewModel @Inject constructor(
         lcr: LeaveCombatRest,
         op: OvernightPass,
     ): CalendarUiState {
-        val gridDates = CalendarGridBuilder.buildGrid(year, month)
-        val typeNames = lcr.leaveTypes.associate { it.id to it.name }
-        val days = gridDates.map { date ->
-            CalendarDayInfo(
-                date = date,
-                isCurrentMonth = date.year == year && date.monthNumber == month,
-                isHoliday = HolidayJudge.isHoliday(date, edh.holidays),
-                leaveNames = lcr.leaveUsages
-                    .filter { date in it.startDate..it.endDate }
-                    .map { usage ->
-                        val name = typeNames[usage.leaveTypeId] ?: "휴가"
-                        usage.label?.takeIf { it.isNotBlank() }?.let { "$name ($it)" } ?: name
-                    }
-                    .distinct(),
-                hasCombatRest = lcr.combatRestUsages.any { date in it.startDate..it.endDate },
-                hasOvernight = op.overnightRecords.any { date in it.date..it.endDate },
-                hasPass = op.passRecords.any { it.date == date },
-                passRecords = op.passRecords.filter { it.date == date },
-                events = edh.events.filter { date in it.startDate..(it.endDate ?: it.startDate) },
-                dutyAssignments = edh.duties.filter { it.date == date },
-            )
-        }
+        val days = CalendarDayBuilder.build(
+            year,
+            month,
+            CalendarSource(
+                events = edh.events,
+                duties = edh.duties,
+                holidays = edh.holidays,
+                leaveUsages = lcr.leaveUsages,
+                leaveTypes = lcr.leaveTypes,
+                combatRestUsages = lcr.combatRestUsages,
+                overnightRecords = op.overnightRecords,
+                passRecords = op.passRecords,
+            ),
+        )
         return CalendarUiState(year = year, month = month, days = days, selectedDate = selected)
     }
 
@@ -129,6 +120,12 @@ class CalendarViewModel @Inject constructor(
     }
 
     fun selectDate(date: LocalDate) {
+        selectedDate.value = date
+    }
+
+    /** 홈 화면 위젯에서 날짜를 골랐을 때: 그 날짜의 달을 보이고 그 날을 선택한다. */
+    fun showDate(date: LocalDate) {
+        yearMonth.value = date.year to date.monthNumber
         selectedDate.value = date
     }
 

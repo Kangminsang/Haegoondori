@@ -50,6 +50,11 @@ android {
     }
 
     buildTypes {
+        // 릴리스 앱과 나란히 설치할 수 있도록 디버그 빌드는 패키지 이름을 분리한다. 데이터도 따로 저장된다.
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false

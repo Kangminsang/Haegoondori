@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        홈 화면 위젯 전용 색. RemoteViews 리소스는 Compose 테마를 쓸 수 없어 여기 따로 둔다.
+        ui/theme/Color.kt의 Paper, Ink, InkRed와 같은 값이어야 한다 - 색을 바꾸면 두 곳을 함께 고친다.
+    -->
+    <color name="widget_paper">#FFE6E4DD</color>
+    <color name="widget_ink">#FF1B1B1B</color>
+    <color name="widget_red">#FFB3312C</color>
+    <!-- 달력 위젯의 주 사이 구분선 색. 앱에는 없는 위젯 전용 회색이다. -->
+    <color name="widget_gray">#FF8A8880</color>
+</resources>

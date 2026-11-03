@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 달력 위젯의 칸 하나. 그림은 비트맵이 그리고, 이 뷰는 날짜 칸을 누르는 투명 터치 영역이다. 폭은 주 행을 7등분한다. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cell_root"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1" />

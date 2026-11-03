@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -14,10 +16,12 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.kangminsang.hagoondori.ui.common.Button
 import com.kangminsang.hagoondori.ui.common.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,10 +31,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
+import com.kangminsang.hagoondori.core.calc.LeaveTypeError
+import com.kangminsang.hagoondori.core.calc.LeaveTypeValidator
 import com.kangminsang.hagoondori.core.model.LeaveGrant
+import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
+import com.kangminsang.hagoondori.core.model.OverflowBehavior
+import com.kangminsang.hagoondori.core.payload.LeaveDeviceLabel
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import com.kangminsang.hagoondori.ui.dashboard.LeaveTypeSummary
 import com.kangminsang.hagoondori.ui.common.rememberToday
@@ -38,10 +48,12 @@ import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
 
-/** 휴가 탭 (F7~F9): 정기/포상/위로휴가별 부여/사용/잔여, 포상 상한 경고. 종류는 미리 채워져 있다. */
+/** 휴가 탭 (F7~F9): 정기/포상/위로휴가별 부여/사용/잔여, 포상 상한 경고. 기본 3종은 새 설치 때 채워지고, 종류는 추가·수정할 수 있다(삭제는 없다). */
 @Composable
 fun LeaveTab(
     uiState: LeaveManagementUiState,
+    onAddType: (name: String, cap: Int?, overflowBehavior: OverflowBehavior, fixedDays: Int?) -> Unit,
+    onUpdateType: (LeaveType) -> Unit,
     onAddGrant: (leaveTypeId: String, days: Int, grantedDate: LocalDate, reason: String?, expiryDate: LocalDate?) -> Unit,
     onMoveType: (leaveTypeId: String, delta: Int) -> Unit,
     onDeleteGrant: (LeaveGrant) -> Unit,
@@ -50,6 +62,8 @@ fun LeaveTab(
     onDeleteUsage: (LeaveUsage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showAddTypeForm by remember { mutableStateOf(false) }
+
     LazyColumn(modifier = modifier.fillMaxWidth()) {
         itemsIndexed(uiState.leaveSummaries, key = { _, it -> it.type.id }) { index, summary ->
             LeaveTypeCard(
@@ -57,6 +71,8 @@ fun LeaveTab(
                 canMoveUp = index > 0,
                 canMoveDown = index < uiState.leaveSummaries.lastIndex,
                 onMove = { delta -> onMoveType(summary.type.id, delta) },
+                otherTypeNames = uiState.leaveTypes.filter { it.id != summary.type.id }.map { it.name },
+                onUpdateType = onUpdateType,
                 usages = uiState.leaveUsages.filter { it.leaveTypeId == summary.type.id },
                 onAddGrant = { days, date, reason, expiry -> onAddGrant(summary.type.id, days, date, reason, expiry) },
                 onDeleteGrant = onDeleteGrant,
@@ -65,6 +81,29 @@ fun LeaveTab(
                 onDeleteUsage = onDeleteUsage,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
+        }
+        item(key = "add-leave-type") {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                if (showAddTypeForm) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            LeaveTypeForm(
+                                initialType = null,
+                                otherNames = uiState.leaveTypes.map { it.name },
+                                grantCount = 0,
+                                submitText = "저장",
+                                onCancel = { showAddTypeForm = false },
+                                onSubmit = { name, cap, overflow, fixedDays ->
+                                    onAddType(name, cap, overflow, fixedDays)
+                                    showAddTypeForm = false
+                                },
+                            )
+                        }
+                    }
+                } else {
+                    TextButton(onClick = { showAddTypeForm = true }) { Text("+ 휴가 종류 추가") }
+                }
+            }
         }
     }
 }
@@ -75,6 +114,8 @@ private fun LeaveTypeCard(
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMove: (delta: Int) -> Unit,
+    otherTypeNames: List<String>,
+    onUpdateType: (LeaveType) -> Unit,
     usages: List<LeaveUsage>,
     onAddGrant: (days: Int, grantedDate: LocalDate, reason: String?, expiryDate: LocalDate?) -> Unit,
     onDeleteGrant: (LeaveGrant) -> Unit,
@@ -85,14 +126,34 @@ private fun LeaveTypeCard(
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
+            var showEditForm by remember { mutableStateOf(false) }
+            var showGrantForm by remember { mutableStateOf(false) }
+            var showUsageForm by remember { mutableStateOf(false) }
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(summary.type.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = { showEditForm = !showEditForm; showGrantForm = false; showUsageForm = false }) {
+                    Icon(Icons.Filled.Edit, contentDescription = "휴가 종류 수정")
+                }
                 IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
                     Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "위로 이동")
                 }
                 IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "아래로 이동")
                 }
+            }
+            if (showEditForm) {
+                LeaveTypeForm(
+                    initialType = summary.type,
+                    otherNames = otherTypeNames,
+                    grantCount = summary.grantStatuses.size,
+                    submitText = "수정 저장",
+                    onCancel = { showEditForm = false },
+                    onSubmit = { name, cap, overflow, fixedDays ->
+                        onUpdateType(summary.type.copy(name = name, cap = cap, overflowBehavior = overflow, fixedDays = fixedDays))
+                        showEditForm = false
+                    },
+                )
             }
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 // 상한이 있는 종류(포상휴가)는 상한도 함께 보여 준다. 부여받은 만큼만 잔여가 생긴다.
@@ -126,14 +187,11 @@ private fun LeaveTypeCard(
                 )
             }
 
-            var showGrantForm by remember { mutableStateOf(false) }
-            var showUsageForm by remember { mutableStateOf(false) }
-
             Row(modifier = Modifier.padding(top = 8.dp)) {
                 if (summary.type.fixedDays == null) {
-                    TextButton(onClick = { showGrantForm = !showGrantForm; showUsageForm = false }) { Text("+ 부여 기록") }
+                    TextButton(onClick = { showGrantForm = !showGrantForm; showUsageForm = false; showEditForm = false }) { Text("+ 부여 기록") }
                 }
-                TextButton(onClick = { showUsageForm = !showUsageForm; showGrantForm = false }) { Text("+ 사용 기록") }
+                TextButton(onClick = { showUsageForm = !showUsageForm; showGrantForm = false; showEditForm = false }) { Text("+ 사용 기록") }
             }
 
             if (showGrantForm) {
@@ -223,6 +281,156 @@ private fun GrantRow(status: LeaveCalculator.GrantStatus, onDelete: () -> Unit) 
         }
     }
 }
+
+/**
+ * 휴가 종류 추가·수정 폼. [initialType]이 null이면 새 종류, 있으면 그 값을 채워 수정한다.
+ * 저장 버튼을 누를 때 [LeaveTypeValidator]로 검사하고, 통과한 값만 [onSubmit]으로 넘긴다.
+ */
+@Composable
+private fun LeaveTypeForm(
+    initialType: LeaveType?,
+    otherNames: List<String>,
+    grantCount: Int,
+    submitText: String,
+    onCancel: () -> Unit,
+    onSubmit: (name: String, cap: Int?, overflowBehavior: OverflowBehavior, fixedDays: Int?) -> Unit,
+) {
+    var name by remember(initialType) { mutableStateOf(initialType?.name.orEmpty()) }
+    var fixedMode by remember(initialType) { mutableStateOf(initialType?.fixedDays != null) }
+    var capText by remember(initialType) { mutableStateOf(initialType?.cap?.toString().orEmpty()) }
+    var fixedText by remember(initialType) { mutableStateOf(initialType?.fixedDays?.toString().orEmpty()) }
+    var convertToCombatRest by remember(initialType) {
+        mutableStateOf(initialType == null || initialType.overflowBehavior == OverflowBehavior.CONVERT_TO_COMBAT_REST)
+    }
+    var errors by remember(initialType) { mutableStateOf<List<LeaveTypeError>>(emptyList()) }
+
+    // 입력했는데 숫자가 아니거나 0이면 0으로 넘겨 검증기가 INVALID_* 오류를 내게 한다. 빈칸만 null(없음)이다.
+    val capValue = if (fixedMode) null else capText.toDaysOrNull()
+    val fixedValue: Int? = if (fixedMode) fixedText.toDaysOrNull() ?: 0 else null
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("이름") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (name.isNotBlank()) {
+            Text(
+                "장치 표시 이름: ${LeaveDeviceLabel.forTypeName(name)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
+        Text("총량 방식", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LeaveTypeRadio(text = "부여 기록 합산", selected = !fixedMode, onSelect = { fixedMode = false })
+            LeaveTypeRadio(text = "고정 일수", selected = fixedMode, onSelect = { fixedMode = true })
+        }
+
+        if (fixedMode) {
+            OutlinedTextField(
+                value = fixedText,
+                onValueChange = { fixedText = it.filter(Char::isDigit) },
+                label = { Text("총 일수") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+        } else {
+            OutlinedTextField(
+                value = capText,
+                onValueChange = { capText = it.filter(Char::isDigit) },
+                label = { Text("상한 일수(선택)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            if (capText.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(value = convertToCombatRest, role = Role.Checkbox, onValueChange = { convertToCombatRest = it }),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = convertToCombatRest, onCheckedChange = null)
+                    Text("상한 초과분을 전투휴무로 전환", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+
+        // 수정할 때만, 해당할 때 나오는 안내. 저장 전에 결과가 어떻게 바뀌는지 알려 준다.
+        if (initialType != null) {
+            if (capValue != initialType.cap) {
+                Text(
+                    "! 상한을 바꾸면 전투휴무 전환분이 다시 계산됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            if (initialType.fixedDays == null && fixedMode && grantCount > 0) {
+                Text(
+                    "! 고정 일수로 바꾸면 기존 부여 기록 ${grantCount}건은",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Text(
+                    "  잔여 계산에서 빠집니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+
+        errors.forEach { error ->
+            Text(
+                error.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                onClick = {
+                    val result = LeaveTypeValidator.validate(name, capValue, fixedValue, otherNames)
+                    errors = result.errors
+                    if (result.isValid) {
+                        // 상한이 없으면 초과 처리도 없다. 상한이 있으면 체크 여부를 따르되, 기존이 REJECT이고 체크를 풀었으면 REJECT를 유지한다.
+                        val overflow = when {
+                            capValue == null -> OverflowBehavior.NONE
+                            convertToCombatRest -> OverflowBehavior.CONVERT_TO_COMBAT_REST
+                            initialType?.overflowBehavior == OverflowBehavior.REJECT -> OverflowBehavior.REJECT
+                            else -> OverflowBehavior.NONE
+                        }
+                        onSubmit(name.trim(), capValue, overflow, fixedValue)
+                    }
+                },
+            ) { Text(submitText) }
+            TextButton(onClick = onCancel, modifier = Modifier.padding(start = 8.dp)) { Text("취소") }
+        }
+    }
+}
+
+@Composable
+private fun LeaveTypeRadio(text: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(end = 16.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** 숫자 입력 한 칸을 일수로 바꾼다. 빈칸은 null(없음), 숫자가 아니면 0(검증기가 오류로 잡는다). */
+private fun String.toDaysOrNull(): Int? = if (isBlank()) null else toIntOrNull() ?: 0
 
 @Composable
 private fun GrantForm(onSubmit: (days: Int, date: LocalDate, reason: String?, expiryDate: LocalDate?) -> Unit) {

@@ -8,6 +8,7 @@ import com.kangminsang.hagoondori.data.local.dao.LeaveDao
 import com.kangminsang.hagoondori.data.mapper.toCore
 import com.kangminsang.hagoondori.data.mapper.toEntity
 import com.kangminsang.hagoondori.data.util.IdGenerator
+import com.kangminsang.hagoondori.widget.WidgetRefresher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
@@ -23,26 +24,43 @@ import javax.inject.Singleton
 class LeaveRepository @Inject constructor(
     private val dao: LeaveDao,
     private val syncStateRepository: SyncStateRepository,
+    private val widgetRefresher: WidgetRefresher,
 ) {
     fun observeTypes(): Flow<List<LeaveType>> =
         dao.observeTypes().map { list -> list.map { it.toCore() } }
 
-    suspend fun addType(name: String, cap: Int?, overflowBehavior: OverflowBehavior): LeaveType {
-        val type = LeaveType(IdGenerator.newId(), name, cap, overflowBehavior)
-        dao.upsertType(type.toEntity())
-        syncStateRepository.markChanged("휴가 종류 추가: $name")
+    /**
+     * 휴가 종류를 새로 만든다. 표시 순서는 맨 뒤(최대 순번 + 1)에 놓는다. 입력은 호출하기 전에
+     * [com.kangminsang.hagoondori.core.calc.LeaveTypeValidator]로 검증한다. 이름은 앞뒤 공백을 뗀다.
+     */
+    suspend fun createType(
+        name: String,
+        cap: Int?,
+        overflowBehavior: OverflowBehavior,
+        fixedDays: Int?,
+    ): LeaveType {
+        val type = LeaveType(IdGenerator.newId(), name.trim(), cap, overflowBehavior, fixedDays)
+        dao.upsertType(type.toEntity(sortOrder = dao.maxTypeSortOrder() + 1))
+        syncStateRepository.markChanged("휴가 종류 추가: ${type.name}")
         return type
     }
 
-    /** 기존 종류 수정(이름/상한/초과처리 변경)에 쓴다 - id가 이미 정해져 있는 경우. */
-    suspend fun upsertType(type: LeaveType) {
-        dao.upsertType(type.toEntity())
+    /**
+     * 기존 종류의 이름·상한·초과 처리·고정 일수를 고친다(id는 그대로). 표시 순서는 건드리지 않는다
+     * ([reorderTypes]의 몫). 입력은 호출하기 전에 검증한다.
+     */
+    suspend fun updateType(type: LeaveType) {
+        dao.updateType(type.id, type.name.trim(), type.cap, type.overflowBehavior, type.fixedDays)
         syncStateRepository.markChanged("휴가 종류 수정: ${type.name}")
     }
 
-    /** 휴가 종류 표시 순서를 [orderedTypeIds] 순서대로 다시 매긴다. 장치 페이로드와 무관해 동기화 대기 건수는 올리지 않는다. */
+    /**
+     * 휴가 종류 표시 순서를 [orderedTypeIds] 순서대로 다시 매긴다. 장치 페이로드와 무관해 동기화 대기 건수는 올리지 않는다.
+     * 다만 위젯의 잔여 줄은 이 순서를 따르므로 위젯만 다시 그린다([SyncStateRepository.markChanged]를 거치지 않는다).
+     */
     suspend fun reorderTypes(orderedTypeIds: List<String>) {
         orderedTypeIds.forEachIndexed { index, id -> dao.updateTypeSortOrder(id, index) }
+        widgetRefresher.refresh()
     }
 
     suspend fun deleteType(type: LeaveType) {
