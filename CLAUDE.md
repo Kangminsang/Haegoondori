@@ -29,9 +29,14 @@ sdk.dir=C\:\\Users\\kangm\\AppData\\Local\\Android\\Sdk
 
 ## 릴리즈와 디버그 APK
 
-- **릴리즈**: `app/build.gradle.kts`의 `versionCode`/`versionName`을 올려 병합한 뒤
-  `v<versionName>` 태그를 push하면 `.github/workflows/release.yml`이 테스트 후 서명한
-  APK를 GitHub Release에 첨부한다. `v1.1.0-rc.1`처럼 `-` 접미사를 붙이면 프리릴리즈가 된다.
+- **릴리즈**: `app/build.gradle.kts`의 `versionCode`/`versionName`을 올린 PR을 기본 브랜치에
+  병합하면 `.github/workflows/release.yml`이 `v<versionName>` 태그가 없을 때 테스트 후 서명한
+  APK로 태그와 GitHub Release를 만든다. 버전을 바꾸지 않은 `build.gradle.kts` 변경은 건너뛴다.
+  `v1.1.0-rc.1`처럼 `-` 접미사를 붙인 태그를 직접 push하면 프리릴리즈가 된다.
+- **"버전 올려" 요청을 받으면**: 기본 브랜치에서 새 브랜치를 만들어 `versionCode`를 1, `versionName`을
+  요청한 값(없으면 다음 마이너 버전)으로 올리고, 아직 병합되지 않은 작업이 있으면 함께 담아 PR을 만든다.
+  PR 본문에 새 버전과 포함된 변경을 적는다. 병합은 사용자가 리뷰한 뒤 직접 하며, 병합되면 릴리즈는
+  워크플로가 진행한다.
 - **필요한 Secrets**: `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`,
   `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`. 키스토어와 비밀번호는 저장소 밖에 백업한다.
   잃어버리면 이후 버전을 기존 앱 위에 설치할 수 없다.

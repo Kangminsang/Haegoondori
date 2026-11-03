@@ -1,8 +1,18 @@
 name: Release APK
 
+# 두 경로로 릴리스한다.
+# - 기본 브랜치에 app/build.gradle.kts 변경이 병합되면, 그 versionName의 태그(v<versionName>)가 아직 없을 때만
+#   태그와 Release를 만든다. 버전을 올린 PR을 병합하는 것만으로 릴리스된다.
+# - v* 태그를 직접 push하면 그 태그로 릴리스한다(프리릴리스나 재빌드용).
 on:
   push:
+    branches: ["claude/military-life-management-app-sumk95"]
+    paths: ["app/build.gradle.kts"]
     tags: ["v*"]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -20,20 +30,38 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: 태그와 versionName 확인
+      - name: 릴리스 태그 결정
+        id: tag
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          version="${TAG_NAME#v}"
-          version="${version%%-*}"
           gradle_version="$(grep -E '^\s*versionName\s*=' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
-          if [ "$version" != "$gradle_version" ]; then
-            echo "::error::태그 버전($version)이 app/build.gradle.kts의 versionName($gradle_version)과 다릅니다."
-            exit 1
+          if [ "$REF_TYPE" = "tag" ]; then
+            tag="$REF_NAME"
+            version="${tag#v}"
+            version="${version%%-*}"
+            if [ "$version" != "$gradle_version" ]; then
+              echo "::error::태그 버전($version)이 app/build.gradle.kts의 versionName($gradle_version)과 다릅니다."
+              exit 1
+            fi
+            skip=false
+          else
+            tag="v$gradle_version"
+            # 버전을 바꾸지 않은 build.gradle.kts 변경(의존성 등)은 이미 태그가 있으므로 건너뛴다.
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+              echo "$tag 태그가 이미 있어 릴리스하지 않습니다."
+              skip=true
+            else
+              skip=false
+            fi
           fi
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
 
       - name: Secrets 확인
+        if: steps.tag.outputs.skip != 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -50,9 +78,11 @@ jobs:
           exit $missing
 
       - name: 단위 테스트
+        if: steps.tag.outputs.skip != 'true'
         run: ./gradlew :core:test :app:testDebugUnitTest
 
       - name: 키스토어 복원
+        if: steps.tag.outputs.skip != 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -60,6 +90,7 @@ jobs:
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
       - name: 릴리스 APK 빌드
+        if: steps.tag.outputs.skip != 'true'
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -68,8 +99,9 @@ jobs:
         run: ./gradlew :app:assembleRelease
 
       - name: 서명 검증 및 산출물 준비
+        if: steps.tag.outputs.skip != 'true'
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
           set -euo pipefail
           apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n1)apksigner"
@@ -81,9 +113,10 @@ jobs:
           echo "ASSET_APK=$out" >> "$GITHUB_ENV"
 
       - name: GitHub Release 게시
+        if: steps.tag.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
           set -euo pipefail
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
@@ -93,8 +126,14 @@ jobs:
             case "$TAG_NAME" in
               *-*) flags+=(--prerelease) ;;
             esac
+            # 태그 push로 시작했으면 그 태그를 쓰고, 병합으로 시작했으면 이 커밋에 태그를 새로 만든다.
+            if [ "${{ github.ref_type }}" = "tag" ]; then
+              flags+=(--verify-tag)
+            else
+              flags+=(--target "$GITHUB_SHA")
+            fi
             gh release create "$TAG_NAME" "$ASSET_APK" "$ASSET_APK.sha256" \
-              --verify-tag --generate-notes --title "$TAG_NAME" "${flags[@]}"
+              --generate-notes --title "$TAG_NAME" "${flags[@]}"
           fi
 
       - name: 키스토어 삭제
