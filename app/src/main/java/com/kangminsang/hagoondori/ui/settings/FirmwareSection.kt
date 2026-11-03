@@ -121,7 +121,7 @@ fun FirmwareSection(modifier: Modifier = Modifier, viewModel: FirmwareUpdateView
 private fun stepText(step: Step): String = when (step) {
     Step.FindingDevice -> "장치를 찾는 중"
     Step.RequestingPermission -> "USB 접근을 허용해 주세요"
-    Step.EnteringBootloader -> "장치를 업데이트 모드로 바꾸는 중 (화면을 그리는 중이면 30초쯤 걸립니다)"
+    Step.EnteringBootloader -> "장치를 업데이트 모드로 바꾸는 중 (화면을 그리는 중이면 끝날 때까지 기다립니다)"
     Step.WaitingForBootloader -> "업데이트 모드 장치를 기다리는 중"
     Step.Rebooting -> "장치를 다시 시작하는 중"
     is Step.Flashing -> when (step.progress.phase) {

@@ -205,7 +205,7 @@ class DeviceFirmwareUpdater @Inject constructor(
         const val SET_CONTROL_LINE_STATE = 0x22
         const val PICOBOOT_IF_RESET = 0x41
         const val TIMEOUT_MS = 5000
-        const val PROMPT_WAIT_MS = 40_000
+        const val PROMPT_WAIT_MS = 90_000  // 새 데이터·저녁 갱신이 이어지면 화면 갱신이 여러 번 연달아 온다
         const val BOOTSEL_WAIT_MS = 20_000
         const val POLL_MS = 250
 
