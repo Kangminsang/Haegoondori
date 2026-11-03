@@ -55,6 +55,9 @@ class DeviceFirmwareUpdater @Inject constructor(
 
     private val usb get() = context.getSystemService(UsbManager::class.java)
 
+    /** 디버그 앱(.debug)과 릴리즈 앱이 함께 설치돼도 서로의 권한 응답을 받지 않도록 패키지 이름을 붙인다. */
+    private val permissionAction get() = "${context.packageName}.USB_PERMISSION"
+
     /** @return 다시 쓴 섹터 수(0이면 이미 같은 펌웨어였다). */
     suspend fun update(image: Uf2Image, onStep: (Step) -> Unit): Int = withContext(Dispatchers.IO) {
         onStep(Step.FindingDevice)
@@ -110,9 +113,9 @@ class DeviceFirmwareUpdater @Inject constructor(
                     }
                 }
             }
-            ContextCompat.registerReceiver(context, receiver, IntentFilter(ACTION_USB_PERMISSION), ContextCompat.RECEIVER_NOT_EXPORTED)
+            ContextCompat.registerReceiver(context, receiver, IntentFilter(permissionAction), ContextCompat.RECEIVER_NOT_EXPORTED)
             cont.invokeOnCancellation { if (done.compareAndSet(false, true)) context.unregisterReceiver(receiver) }
-            val intent = Intent(ACTION_USB_PERMISSION).setPackage(context.packageName)
+            val intent = Intent(permissionAction).setPackage(context.packageName)
             usb.requestPermission(
                 device,
                 PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
@@ -199,7 +202,6 @@ class DeviceFirmwareUpdater @Inject constructor(
     private companion object {
         const val VID_RASPBERRY_PI = 0x2E8A
         const val PID_BOOTSEL = 0x0003
-        const val ACTION_USB_PERMISSION = "com.kangminsang.hagoondori.USB_PERMISSION"
         const val SET_CONTROL_LINE_STATE = 0x22
         const val PICOBOOT_IF_RESET = 0x41
         const val TIMEOUT_MS = 5000
