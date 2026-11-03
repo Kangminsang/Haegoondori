@@ -191,6 +191,8 @@ fun SettingsScreen(
                 }
             }
 
+            FirmwareSection(modifier = Modifier.fillMaxWidth())
+
             DataTransferSection(
                 onExport = { uri, onResult -> viewModel.exportBackup(uri, onResult) },
                 onRestore = { uri, onResult -> viewModel.restoreBackup(uri, onResult) },
