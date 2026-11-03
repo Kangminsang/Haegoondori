@@ -137,3 +137,17 @@ MSYS_NO_PATHCONV=1 "$ADB" shell cat /sdcard/Android/data/com.kangminsang.hagoond
 렌더링 아티팩트가 아니라 진짜 로직 버그라고 확신할 수 있었다. 렌더링이 이상해
 보이면 GPU 모드를 바꿔 재현되는지부터 확인하면 "에뮬레이터 탓"과 "진짜 버그"를
 빠르게 구분할 수 있다.
+
+## 장치 펌웨어 내장
+
+설정의 "장치 펌웨어" 카드는 USB로 연결된 E-calendar 장치를 PICOBOOT로 플래시한다
+(`app/.../firmware/DeviceFirmwareUpdater.kt`, 로직과 테스트는 `core/.../core/firmware/`).
+Android가 BOOTSEL 드라이브를 마운트하지 못해 UF2 복사 대신 이 경로를 쓴다. 장치 파일시스템
+영역(`0x100A0000`~)은 `Uf2Image`가 거부하므로 일정 데이터는 지워지지 않는다.
+
+내장 펌웨어를 바꿀 때:
+
+1. E-calendar 저장소의 `build-artifacts/firmware.uf2`를 `app/src/main/assets/firmware/e-calendar.uf2`로 복사한다.
+2. `e-calendar.txt`의 첫 줄(화면에 보이는 이름, 예: `2026-11-02 빌드 (E-calendar 3c4c79b)`)과
+   둘째 줄(`sha256sum` 값)을 고친다. 해시가 다르면 앱이 내장 펌웨어를 쓰지 않고,
+   `./gradlew :core:test`의 `BundledFirmwareTest`도 실패한다.

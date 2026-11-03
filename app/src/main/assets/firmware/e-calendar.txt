@@ -1,0 +1,2 @@
+2026-11-02 빌드 (E-calendar 3c4c79b)
+0ebde8e77bed65054f14d13e62fc2c53c82e0156cf8abfe4247cb05091fa1f27
