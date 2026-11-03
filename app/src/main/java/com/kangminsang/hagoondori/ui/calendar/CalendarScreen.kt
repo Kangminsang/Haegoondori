@@ -1,6 +1,8 @@
 package com.kangminsang.hagoondori.ui.calendar
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,11 +18,7 @@ import com.kangminsang.hagoondori.ui.common.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.rememberCoroutineScope
 import com.kangminsang.hagoondori.core.model.DutyType
-import kotlinx.coroutines.launch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +48,7 @@ import com.kangminsang.hagoondori.ui.common.DateTextField
 import kotlinx.datetime.LocalDate
 
 /**
- * ② 달력 (스펙 5.1/5.2절, F3) - 월간 달력 + 날짜별 항목 표시, 그리고 근무·외출 일괄 입력 모드(F6).
+ * ② 달력 (스펙 5.1/5.2절, F3) - 월간 달력 + 날짜별 항목 표시, 그리고 근무·외출 탭 입력 모드(F6).
  * 휴가/전투휴무/외박/외출을 시각적으로 구분한다.
  */
 @Composable
@@ -63,25 +61,26 @@ fun CalendarScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // 근무 입력 모드: 날짜를 여러 개 골라 근무 종류(또는 외출)를 한 번에 저장한다(F6).
+    // 근무·외출 입력 모드(F6): 입력할 종류를 고른 뒤 날짜를 누르면 바로 저장되고, 이미 있는 날을 다시 누르면 지워진다(토글).
+    // 예전의 여러 날짜 선택 후 일괄 저장 방식은 빠뜨리기 쉬워 이 방식으로 바꿨다.
     // 예전의 별도 '근무입력' 탭은 이 달력과 격자·기능이 겹쳐 이 모드로 합쳤다.
     var inputMode by remember { mutableStateOf(false) }
-    var selectedDates by remember { mutableStateOf(setOf<LocalDate>()) }
     var selectedType by remember { mutableStateOf(DutyType.DUTY) }
     var isPassMode by remember { mutableStateOf(false) }
     var addingEvent by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    /** 입력 모드에서 방금 한 토글의 안내 문구. 입력 모드를 나가면 비운다. */
+    var lastAction by remember { mutableStateOf<String?>(null) }
 
-    // 위젯에서 날짜를 골랐다면 근무 입력 모드를 끄고(입력 중이던 선택은 버린다) 그 날짜를 보여 준다.
+    // 위젯에서 날짜를 골랐다면 근무 입력 모드를 끄고(방금 한 입력 안내도 버린다) 그 날짜를 보여 준다.
     LaunchedEffect(openRequest) {
         val request = openRequest ?: return@LaunchedEffect
         inputMode = false
+        lastAction = null
         request.date?.let(viewModel::showDate)
         onOpenRequestHandled()
     }
 
-    Scaffold(modifier = modifier, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+    Scaffold(modifier = modifier) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -99,7 +98,7 @@ fun CalendarScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = !inputMode,
-                    onClick = { inputMode = false },
+                    onClick = { inputMode = false; lastAction = null },
                     label = { Text("보기") },
                 )
                 FilterChip(
@@ -109,13 +108,24 @@ fun CalendarScreen(
                 )
             }
 
+            if (inputMode) {
+                TypeChoiceRow(
+                    selectedType = selectedType,
+                    isPassMode = isPassMode,
+                    onSelectDuty = { selectedType = it; isPassMode = false },
+                    onSelectPass = { isPassMode = true },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                )
+            }
+
             MonthGrid(
                 days = uiState.days,
-                selectedDates = if (inputMode) selectedDates else setOfNotNull(uiState.selectedDate),
-                fillSelected = inputMode,
+                selectedDates = if (inputMode) emptySet() else setOfNotNull(uiState.selectedDate),
+                fillSelected = false,
                 onDayClick = { date ->
                     if (inputMode) {
-                        selectedDates = if (date in selectedDates) selectedDates - date else selectedDates + date
+                        if (isPassMode) viewModel.togglePass(date) { lastAction = it }
+                        else viewModel.toggleDuty(date, selectedType) { lastAction = it }
                     } else {
                         viewModel.selectDate(date)
                     }
@@ -126,23 +136,11 @@ fun CalendarScreen(
             Divider(modifier = Modifier.padding(vertical = 16.dp))
 
             if (inputMode) {
-                DutyInputPanel(
-                    selectedCount = selectedDates.size,
-                    selectedType = selectedType,
+                InputGuide(
+                    lastAction = lastAction,
                     isPassMode = isPassMode,
+                    selectedType = selectedType,
                     autoAddOffDuty = uiState.autoAddOffDuty,
-                    onSelectDuty = { selectedType = it; isPassMode = false },
-                    onSelectPass = { isPassMode = true },
-                    onSave = {
-                        val onResult = { saved: Int, skipped: Int ->
-                            val message = if (skipped > 0) "${saved}건 저장, ${skipped}건은 이미 있어 건너뜀" else "${saved}건 저장했습니다"
-                            selectedDates = emptySet()
-                            scope.launch { snackbarHostState.showSnackbar(message) }
-                            Unit
-                        }
-                        if (isPassMode) viewModel.submitPass(selectedDates, onResult)
-                        else viewModel.submitDuty(selectedDates, selectedType, onResult)
-                    },
                 )
             } else {
                 SelectedDayDetail(
@@ -168,22 +166,18 @@ fun CalendarScreen(
     }
 }
 
+/** 입력 모드에서 고르는 종류 칩(당직/비번/츄라이/외출). 달력 위에 둬서 날짜를 누르기 전에 고른다. */
 @Composable
-private fun DutyInputPanel(
-    selectedCount: Int,
+private fun TypeChoiceRow(
     selectedType: DutyType,
     isPassMode: Boolean,
-    autoAddOffDuty: Boolean,
     onSelectDuty: (DutyType) -> Unit,
     onSelectPass: () -> Unit,
-    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column {
-        Text(
-            "달력에서 여러 날짜를 탭해 고른 뒤, 근무 종류(또는 외출)를 골라 한 번에 저장하세요",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier) {
+        Text("입력할 종류", style = MaterialTheme.typography.bodySmall)
+        Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DutyType.entries.forEach { type ->
                 FilterChip(
                     selected = !isPassMode && selectedType == type,
@@ -193,24 +187,46 @@ private fun DutyInputPanel(
             }
             FilterChip(selected = isPassMode, onClick = onSelectPass, label = { Text("외출") })
         }
+    }
+}
+
+/** 입력 모드 하단 안내: 방금 한 동작(있으면)과 토글 방식, 종류별 자동 추가 규칙. */
+@Composable
+private fun InputGuide(
+    lastAction: String?,
+    isPassMode: Boolean,
+    selectedType: DutyType,
+    autoAddOffDuty: Boolean,
+) {
+    Column {
+        if (lastAction != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text("방금: $lastAction", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        Text(
+            "날짜를 누르면 고른 종류가 바로 저장되고, 이미 있는 날을 다시 누르면 지워집니다",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         if (isPassMode) {
             Text(
-                "평일/휴일은 날짜별로 자동 판정됩니다. 이미 외출이 기록된 날짜는 건너뜁니다",
+                "평일/휴일은 날짜별로 자동 판정됩니다",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
         } else if (selectedType == DutyType.DUTY && autoAddOffDuty) {
             Text(
-                "당직으로 저장하면 선택한 날짜들의 다음 날이 비번으로 자동 추가됩니다",
+                "당직을 넣으면 다음 날 비번도 함께 들어가고, 당직을 지우면 그 비번도 함께 지워집니다",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Button(
-            enabled = selectedCount > 0,
-            onClick = onSave,
-            modifier = Modifier.padding(top = 16.dp),
-        ) { Text("${selectedCount}건 일괄 저장") }
     }
 }
 

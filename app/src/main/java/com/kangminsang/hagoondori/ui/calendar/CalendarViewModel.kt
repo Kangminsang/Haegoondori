@@ -21,7 +21,10 @@ import com.kangminsang.hagoondori.data.repository.OvernightRepository
 import com.kangminsang.hagoondori.data.repository.PassRepository
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import com.kangminsang.hagoondori.core.model.DutyType
+import com.kangminsang.hagoondori.ui.duty.dutyTypeLabel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.plus
@@ -149,51 +152,76 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch { dutyRepository.delete(assignment) }
     }
 
-    // ---- 근무 일괄 입력 (F6) ----
-    // 당직표가 한 달치가 한 번에 나오는 근무 환경 특성상, 여러 날짜를 골라 한 번에 저장한다(스펙 4.13절).
+    // ---- 근무·외출 탭 입력 (F6) ----
+    // 날짜를 한 번 누르면 고른 종류가 바로 저장되고, 이미 있는 날을 다시 누르면 지워진다(토글).
+    // 빠르게 연속으로 눌러도 같은 날짜가 두 번 들어가거나 엇갈리지 않도록 모든 토글을 하나의 Mutex로 직렬화한다.
+    // 저장 결과는 onResult로 한 줄 안내 문구를 돌려준다(화면의 "방금" 표시에 쓴다).
+
+    private val toggleMutex = Mutex()
 
     /**
-     * [dates]를 외출로 일괄 저장한다. 평일/휴일은 날짜별로 자동 판정하고, 이미 외출이 기록된
-     * 날짜는 건너뛴다.
+     * [date]의 [type] 배정을 토글한다. 이미 있으면 지우고, 없으면 추가한다.
+     * [type]이 DUTY이고 [com.kangminsang.hagoondori.core.model.UserProfile.autoAddOffDuty]가
+     * 켜져 있으면 **다음 날**의 비번(OFF_DUTY)도 함께 넣거나 함께 지운다(4.16절).
      *
-     * @param onResult (저장된 건수, 건너뛴 건수)
+     * @param onResult 방금 한 동작을 설명하는 안내 문구 (예: "11-17 당직 추가 · 11-18 비번 자동 추가")
      */
-    fun submitPass(dates: Set<LocalDate>, onResult: (savedCount: Int, skippedCount: Int) -> Unit) {
+    fun toggleDuty(date: LocalDate, type: DutyType, onResult: (String) -> Unit) {
         viewModelScope.launch {
-            val holidays = holidayRepository.getAll()
-            val alreadyPassed = passRepository.observeAll().first().map { it.date }.toSet()
-            val targets = dates.filter { it !in alreadyPassed }
-            targets.forEach { date ->
-                passRepository.addRecord(date, PassCalculator.classifyType(date, holidays), null)
+            toggleMutex.withLock {
+                val autoAddOff = type == DutyType.DUTY && profileRepository.get()?.autoAddOffDuty == true
+                val nextDay = date.plus(1, DateTimeUnit.DAY)
+                val current = dutyRepository.observeAll().first()
+                val label = dutyTypeLabel(type)
+                val existing = current.firstOrNull { it.date == date && it.type == type }
+
+                if (existing != null) {
+                    dutyRepository.delete(existing)
+                    var message = "${date.shortLabel()} $label 삭제"
+                    if (autoAddOff) {
+                        val nextOff = current.firstOrNull { it.date == nextDay && it.type == DutyType.OFF_DUTY }
+                        if (nextOff != null) {
+                            dutyRepository.delete(nextOff)
+                            message += " · ${nextDay.shortLabel()} 비번 함께 삭제"
+                        }
+                    }
+                    onResult(message)
+                } else {
+                    dutyRepository.assign(date, type)
+                    var message = "${date.shortLabel()} $label 추가"
+                    if (autoAddOff && current.none { it.date == nextDay && it.type == DutyType.OFF_DUTY }) {
+                        dutyRepository.assign(nextDay, DutyType.OFF_DUTY)
+                        message += " · ${nextDay.shortLabel()} 비번 자동 추가"
+                    }
+                    onResult(message)
+                }
             }
-            onResult(targets.size, dates.size - targets.size)
         }
     }
 
     /**
-     * [dates]를 [type]으로 일괄 저장한다. 이미 있는 `(date, type)` 조합은 조용히 건너뛴다.
-     * [type]이 DUTY이고 [com.kangminsang.hagoondori.core.model.UserProfile.autoAddOffDuty]가
-     * 켜져 있으면, 선택한 날짜들의 **다음 날**을 OFF_DUTY로도 자동 추가한다.
+     * [date]의 외출 기록을 토글한다. 기록이 있으면 그 날짜의 것을 모두 지우고, 없으면 평일/휴일을
+     * 자동 판정해 추가한다.
      *
-     * @param onResult (저장된 건수, 건너뛴 건수) - 화면이 이걸로 안내 문구를 만든다.
+     * @param onResult 방금 한 동작을 설명하는 안내 문구 (예: "11-08 외출 추가 (평일)")
      */
-    fun submitDuty(dates: Set<LocalDate>, type: DutyType, onResult: (savedCount: Int, skippedCount: Int) -> Unit) {
-        if (dates.isEmpty()) {
-            onResult(0, 0)
-            return
-        }
+    fun togglePass(date: LocalDate, onResult: (String) -> Unit) {
         viewModelScope.launch {
-            val primarySaved = dutyRepository.bulkAssign(dates, type)
-            val primarySkipped = dates.size - primarySaved
-
-            var autoAddedOffDutyCount = 0
-            if (type == DutyType.DUTY && profileRepository.get()?.autoAddOffDuty == true) {
-                val nextDayDates = dates.map { it.plus(1, DateTimeUnit.DAY) }
-                autoAddedOffDutyCount = dutyRepository.bulkAssign(nextDayDates, DutyType.OFF_DUTY)
+            toggleMutex.withLock {
+                val existing = passRepository.observeAll().first().filter { it.date == date }
+                if (existing.isNotEmpty()) {
+                    existing.forEach { passRepository.deleteRecord(it) }
+                    onResult("${date.shortLabel()} 외출 삭제")
+                } else {
+                    val type = PassCalculator.classifyType(date, holidayRepository.getAll())
+                    passRepository.addRecord(date, type, null)
+                    val kind = if (type == PassType.WEEKDAY) "평일" else "휴일"
+                    onResult("${date.shortLabel()} 외출 추가 ($kind)")
+                }
             }
-
-            // 자동 추가분의 건너뜀은 부수 효과일 뿐이라 "건너뜀" 안내는 사용자가 직접 고른 날짜 기준으로만 센다.
-            onResult(primarySaved + autoAddedOffDutyCount, primarySkipped)
         }
     }
 }
+
+/** 안내 문구용 날짜 표기: MM-dd (월·일 모두 두 자리). */
+private fun LocalDate.shortLabel(): String = "%02d-%02d".format(monthNumber, dayOfMonth)
