@@ -144,6 +144,10 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch { passRepository.deleteRecord(record) }
     }
 
+    fun updateEvent(event: Event) {
+        viewModelScope.launch { eventRepository.update(event) }
+    }
+
     fun deleteEvent(event: Event) {
         viewModelScope.launch { eventRepository.delete(event) }
     }

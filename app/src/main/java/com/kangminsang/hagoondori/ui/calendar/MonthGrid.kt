@@ -1,6 +1,7 @@
 package com.kangminsang.hagoondori.ui.calendar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,11 +16,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.model.DutyType
@@ -47,11 +50,36 @@ fun MonthGrid(
     /** 근무 입력 모드: 선택된 칸을 테두리에 더해 음영으로도 채워, 여러 칸이 골라졌음을 분명히 한다. */
     fillSelected: Boolean = false,
     onDayClick: (LocalDate) -> Unit,
+    /** 격자를 오른쪽으로 밀면(이전 달 방향) 호출된다. */
+    onSwipePrevious: () -> Unit = {},
+    /** 격자를 왼쪽으로 밀면(다음 달 방향) 호출된다. */
+    onSwipeNext: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val today by rememberToday()
     val ink = MaterialTheme.colorScheme.onSurface
-    Column(modifier = modifier) {
+    val currentOnSwipePrevious by rememberUpdatedState(onSwipePrevious)
+    val currentOnSwipeNext by rememberUpdatedState(onSwipeNext)
+    Column(
+        modifier = modifier.pointerInput(Unit) {
+            // 가로 드래그만 잡는다 - 세로 스크롤은 상위 verticalScroll이 그대로 처리한다.
+            // 칸 탭은 드래그가 아니므로 영향이 없다.
+            val threshold = 60.dp.toPx()
+            var total = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { total = 0f },
+                onDragEnd = {
+                    if (total < -threshold) currentOnSwipeNext()
+                    else if (total > threshold) currentOnSwipePrevious()
+                },
+                onDragCancel = { total = 0f },
+            ) { change, dragAmount ->
+                // 소비해야 드래그 중인 칸의 clickable이 탭으로 처리하지 않는다.
+                change.consume()
+                total += dragAmount
+            }
+        },
+    ) {
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             WEEKDAY_LABELS.forEachIndexed { index, label ->
                 Text(
