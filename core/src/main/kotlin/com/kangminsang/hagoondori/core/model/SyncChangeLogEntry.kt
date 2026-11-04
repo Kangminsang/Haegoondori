@@ -3,8 +3,8 @@ package com.kangminsang.hagoondori.core.model
 import kotlinx.datetime.Instant
 
 /**
- * 마지막 동기화 이후 발생한 변경 하나(스펙 4.15절, F18). [SyncState.pendingChangeCount]는
- * "몇 건"만 보여주지만, 이 목록은 "무엇이" 바뀌었는지 사용자가 확인할 수 있게 한다.
+ * 순 차이 방식 이전에 기록된 변경 하나(스펙 4.15절, F18). 지금은 "업데이트 전 변경"으로만 보여준다.
+ * 새 미반영 변경은 페이로드 차이에서 계산하므로 이 표에 더 쌓이지 않는다.
  */
 data class SyncChangeLogEntry(
     val id: String,

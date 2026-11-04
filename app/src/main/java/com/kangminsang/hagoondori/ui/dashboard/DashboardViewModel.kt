@@ -16,7 +16,6 @@ import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
-import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayAutoRefresh
@@ -24,6 +23,8 @@ import com.kangminsang.hagoondori.data.repository.CombatRestRepository
 import com.kangminsang.hagoondori.data.repository.LeaveRepository
 import com.kangminsang.hagoondori.data.repository.OvernightRepository
 import com.kangminsang.hagoondori.data.repository.PassRepository
+import com.kangminsang.hagoondori.data.repository.PendingChanges
+import com.kangminsang.hagoondori.data.repository.PendingChangesTracker
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import com.kangminsang.hagoondori.data.repository.SyncStateRepository
 import com.kangminsang.hagoondori.util.AppClock
@@ -48,6 +49,7 @@ class DashboardViewModel @Inject constructor(
     private val overnightRepository: OvernightRepository,
     private val passRepository: PassRepository,
     private val syncStateRepository: SyncStateRepository,
+    private val pendingChangesTracker: PendingChangesTracker,
     private val holidayAutoRefresh: HolidayAutoRefresh,
 ) : ViewModel() {
 
@@ -69,7 +71,7 @@ class DashboardViewModel @Inject constructor(
         combine(
             passRepository.observeAll(),
             syncStateRepository.observe(),
-            syncStateRepository.observeChangeLog(),
+            pendingChangesTracker.observe(),
             AppClock.todayFlow(),
             ::PassAndSyncData,
         ),
@@ -83,7 +85,7 @@ class DashboardViewModel @Inject constructor(
     private data class PassAndSyncData(
         val records: List<PassRecord>,
         val syncState: SyncState,
-        val changeLog: List<SyncChangeLogEntry>,
+        val pendingChanges: PendingChanges,
         val today: LocalDate,
     )
 
@@ -172,7 +174,7 @@ class DashboardViewModel @Inject constructor(
             nextOuting = nextOuting,
             nextPass = nextPass,
             syncState = passAndSync.syncState,
-            syncChangeLog = passAndSync.changeLog,
+            pendingChanges = passAndSync.pendingChanges,
         )
     }
 }

@@ -2,11 +2,11 @@ package com.kangminsang.hagoondori.ui.dashboard
 
 import com.kangminsang.hagoondori.core.calc.OutingPeriod
 import com.kangminsang.hagoondori.core.model.LeaveType
-import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.core.calc.CombatRestSummary
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
+import com.kangminsang.hagoondori.data.repository.PendingChanges
 import kotlinx.datetime.LocalDate
 
 /** 휴가 종류 하나의 부여/사용/잔여 요약 (대시보드·출타관리 화면 공용). */
@@ -52,5 +52,6 @@ data class DashboardUiState(
     /** 오늘 이후 가장 가까운 외출. 없으면 null. */
     val nextPass: LocalDate? = null,
     val syncState: SyncState = SyncState(),
-    val syncChangeLog: List<SyncChangeLogEntry> = emptyList(),
+    /** 동기화하지 않은 변경(순 차이)과 예전 변경 내역. 배너가 쓴다. */
+    val pendingChanges: PendingChanges = PendingChanges(),
 )

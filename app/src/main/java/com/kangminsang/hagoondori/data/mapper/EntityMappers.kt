@@ -97,10 +97,7 @@ fun DutyAssignment.toEntity(): DutyAssignmentEntity = DutyAssignmentEntity(id, d
 fun HolidayEntity.toCore(): Holiday = Holiday(date, name, isSubstitute)
 fun Holiday.toEntity(): HolidayEntity = HolidayEntity(date, name, isSubstitute)
 
+/** [SyncStateEntity.syncedPayload]는 앱 쪽(SyncStateRepository)에서만 읽고 쓰므로 core 모델에 올리지 않는다. */
 fun SyncStateEntity.toCore(): SyncState = SyncState(lastSyncedAt, pendingChangeCount)
-fun SyncState.toEntity(): SyncStateEntity = SyncStateEntity(
-    lastSyncedAt = lastSyncedAt,
-    pendingChangeCount = pendingChangeCount,
-)
 
 fun SyncChangeLogEntity.toCore(): SyncChangeLogEntry = SyncChangeLogEntry(id, description, occurredAt)

@@ -143,9 +143,9 @@ fun SettingsScreen(
         ) {
             SyncStatusBanner(
                 syncState = uiState.syncState,
+                pendingChanges = uiState.pendingChanges,
                 now = AppClock.now(),
                 onSyncNow = { requestSync() },
-                changeLog = uiState.syncChangeLog,
             )
 
             ProfileSection(profile = uiState.profile, onSave = viewModel::saveProfile, modifier = Modifier.fillMaxWidth())
