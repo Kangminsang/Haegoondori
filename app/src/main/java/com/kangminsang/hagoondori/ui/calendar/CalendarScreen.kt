@@ -1,6 +1,9 @@
 package com.kangminsang.hagoondori.ui.calendar
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,15 +15,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import com.kangminsang.hagoondori.ui.common.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.rememberCoroutineScope
 import com.kangminsang.hagoondori.core.model.DutyType
-import kotlinx.coroutines.launch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +50,7 @@ import com.kangminsang.hagoondori.ui.common.DateTextField
 import kotlinx.datetime.LocalDate
 
 /**
- * ② 달력 (스펙 5.1/5.2절, F3) - 월간 달력 + 날짜별 항목 표시, 그리고 근무·외출 일괄 입력 모드(F6).
+ * ② 달력 (스펙 5.1/5.2절, F3) - 월간 달력 + 날짜별 항목 표시, 그리고 근무·외출 탭 입력 모드(F6).
  * 휴가/전투휴무/외박/외출을 시각적으로 구분한다.
  */
 @Composable
@@ -63,25 +63,33 @@ fun CalendarScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // 근무 입력 모드: 날짜를 여러 개 골라 근무 종류(또는 외출)를 한 번에 저장한다(F6).
+    // 근무·외출 입력 모드(F6): 입력할 종류를 고른 뒤 날짜를 누르면 바로 저장되고, 이미 있는 날을 다시 누르면 지워진다(토글).
+    // 예전의 여러 날짜 선택 후 일괄 저장 방식은 빠뜨리기 쉬워 이 방식으로 바꿨다.
     // 예전의 별도 '근무입력' 탭은 이 달력과 격자·기능이 겹쳐 이 모드로 합쳤다.
     var inputMode by remember { mutableStateOf(false) }
-    var selectedDates by remember { mutableStateOf(setOf<LocalDate>()) }
     var selectedType by remember { mutableStateOf(DutyType.DUTY) }
     var isPassMode by remember { mutableStateOf(false) }
     var addingEvent by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    /** 수정 중인 일반 일정의 id. 날짜를 바꾸거나 입력 모드에 들어가면 비운다. */
+    var editingEventId by remember { mutableStateOf<String?>(null) }
+    /** 입력 모드에서 방금 한 토글의 안내 문구. 입력 모드를 나가면 비운다. */
+    var lastAction by remember { mutableStateOf<String?>(null) }
 
-    // 위젯에서 날짜를 골랐다면 근무 입력 모드를 끄고(입력 중이던 선택은 버린다) 그 날짜를 보여 준다.
+    // 선택한 날짜가 바뀌면 수정 중이던 일정 폼은 닫는다(다른 날의 일정을 가리키지 않도록).
+    LaunchedEffect(uiState.selectedDate) {
+        editingEventId = null
+    }
+
+    // 위젯에서 날짜를 골랐다면 근무 입력 모드를 끄고(방금 한 입력 안내도 버린다) 그 날짜를 보여 준다.
     LaunchedEffect(openRequest) {
         val request = openRequest ?: return@LaunchedEffect
         inputMode = false
+        lastAction = null
         request.date?.let(viewModel::showDate)
         onOpenRequestHandled()
     }
 
-    Scaffold(modifier = modifier, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+    Scaffold(modifier = modifier) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -99,50 +107,51 @@ fun CalendarScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = !inputMode,
-                    onClick = { inputMode = false },
+                    onClick = { inputMode = false; lastAction = null },
                     label = { Text("보기") },
                 )
                 FilterChip(
                     selected = inputMode,
-                    onClick = { inputMode = true },
+                    onClick = { inputMode = true; editingEventId = null },
                     label = { Text("근무·외출 입력") },
+                )
+            }
+
+            if (inputMode) {
+                TypeChoiceRow(
+                    selectedType = selectedType,
+                    isPassMode = isPassMode,
+                    onSelectDuty = { selectedType = it; isPassMode = false },
+                    onSelectPass = { isPassMode = true },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 )
             }
 
             MonthGrid(
                 days = uiState.days,
-                selectedDates = if (inputMode) selectedDates else setOfNotNull(uiState.selectedDate),
-                fillSelected = inputMode,
+                selectedDates = if (inputMode) emptySet() else setOfNotNull(uiState.selectedDate),
+                fillSelected = false,
                 onDayClick = { date ->
                     if (inputMode) {
-                        selectedDates = if (date in selectedDates) selectedDates - date else selectedDates + date
+                        if (isPassMode) viewModel.togglePass(date) { lastAction = it }
+                        else viewModel.toggleDuty(date, selectedType) { lastAction = it }
                     } else {
                         viewModel.selectDate(date)
                     }
                 },
+                onSwipePrevious = viewModel::previousMonth,
+                onSwipeNext = viewModel::nextMonth,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
 
             Divider(modifier = Modifier.padding(vertical = 16.dp))
 
             if (inputMode) {
-                DutyInputPanel(
-                    selectedCount = selectedDates.size,
-                    selectedType = selectedType,
+                InputGuide(
+                    lastAction = lastAction,
                     isPassMode = isPassMode,
+                    selectedType = selectedType,
                     autoAddOffDuty = uiState.autoAddOffDuty,
-                    onSelectDuty = { selectedType = it; isPassMode = false },
-                    onSelectPass = { isPassMode = true },
-                    onSave = {
-                        val onResult = { saved: Int, skipped: Int ->
-                            val message = if (skipped > 0) "${saved}건 저장, ${skipped}건은 이미 있어 건너뜀" else "${saved}건 저장했습니다"
-                            selectedDates = emptySet()
-                            scope.launch { snackbarHostState.showSnackbar(message) }
-                            Unit
-                        }
-                        if (isPassMode) viewModel.submitPass(selectedDates, onResult)
-                        else viewModel.submitDuty(selectedDates, selectedType, onResult)
-                    },
                 )
             } else {
                 SelectedDayDetail(
@@ -151,7 +160,13 @@ fun CalendarScreen(
                     onDeletePass = viewModel::deletePass,
                     onDeleteDuty = viewModel::deleteDuty,
                     addingEvent = addingEvent,
-                    onToggleAddEvent = { addingEvent = !addingEvent },
+                    onToggleAddEvent = { addingEvent = !addingEvent; editingEventId = null },
+                    editingEventId = editingEventId,
+                    onEditEvent = { id ->
+                        editingEventId = id
+                        if (id != null) addingEvent = false
+                    },
+                    onUpdateEvent = viewModel::updateEvent,
                 )
 
                 uiState.selectedDate?.let { selected ->
@@ -168,22 +183,18 @@ fun CalendarScreen(
     }
 }
 
+/** 입력 모드에서 고르는 종류 칩(당직/비번/츄라이/외출). 달력 위에 둬서 날짜를 누르기 전에 고른다. */
 @Composable
-private fun DutyInputPanel(
-    selectedCount: Int,
+private fun TypeChoiceRow(
     selectedType: DutyType,
     isPassMode: Boolean,
-    autoAddOffDuty: Boolean,
     onSelectDuty: (DutyType) -> Unit,
     onSelectPass: () -> Unit,
-    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column {
-        Text(
-            "달력에서 여러 날짜를 탭해 고른 뒤, 근무 종류(또는 외출)를 골라 한 번에 저장하세요",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier) {
+        Text("입력할 종류", style = MaterialTheme.typography.bodySmall)
+        Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DutyType.entries.forEach { type ->
                 FilterChip(
                     selected = !isPassMode && selectedType == type,
@@ -193,24 +204,46 @@ private fun DutyInputPanel(
             }
             FilterChip(selected = isPassMode, onClick = onSelectPass, label = { Text("외출") })
         }
+    }
+}
+
+/** 입력 모드 하단 안내: 방금 한 동작(있으면)과 토글 방식, 종류별 자동 추가 규칙. */
+@Composable
+private fun InputGuide(
+    lastAction: String?,
+    isPassMode: Boolean,
+    selectedType: DutyType,
+    autoAddOffDuty: Boolean,
+) {
+    Column {
+        if (lastAction != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text("방금: $lastAction", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        Text(
+            "날짜를 누르면 고른 종류가 바로 저장되고, 이미 있는 날을 다시 누르면 지워집니다",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         if (isPassMode) {
             Text(
-                "평일/휴일은 날짜별로 자동 판정됩니다. 이미 외출이 기록된 날짜는 건너뜁니다",
+                "평일/휴일은 날짜별로 자동 판정됩니다",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
         } else if (selectedType == DutyType.DUTY && autoAddOffDuty) {
             Text(
-                "당직으로 저장하면 선택한 날짜들의 다음 날이 비번으로 자동 추가됩니다",
+                "당직을 넣으면 다음 날 비번도 함께 들어가고, 당직을 지우면 그 비번도 함께 지워집니다",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Button(
-            enabled = selectedCount > 0,
-            onClick = onSave,
-            modifier = Modifier.padding(top = 16.dp),
-        ) { Text("${selectedCount}건 일괄 저장") }
     }
 }
 
@@ -238,6 +271,10 @@ private fun SelectedDayDetail(
     onDeleteDuty: (DutyAssignment) -> Unit,
     addingEvent: Boolean,
     onToggleAddEvent: () -> Unit,
+    editingEventId: String?,
+    /** 일정 수정 폼을 연다(id). null이면 닫는다. */
+    onEditEvent: (String?) -> Unit,
+    onUpdateEvent: (Event) -> Unit,
 ) {
     if (day == null) {
         Text("날짜를 선택하면 상세 내용을 볼 수 있습니다", style = MaterialTheme.typography.bodyMedium)
@@ -289,7 +326,19 @@ private fun SelectedDayDetail(
             }
         }
         day.events.forEach { event ->
-            EventLine(event, onDelete = { onDeleteEvent(event) })
+            if (event.id == editingEventId) {
+                EventEditForm(
+                    event = event,
+                    onUpdate = onUpdateEvent,
+                    onClose = { onEditEvent(null) },
+                )
+            } else {
+                EventLine(
+                    event,
+                    onEdit = { onEditEvent(event.id) },
+                    onDelete = { onDeleteEvent(event) },
+                )
+            }
         }
     }
 }
@@ -302,15 +351,150 @@ private fun DetailLine(text: String) {
 }
 
 @Composable
-private fun EventLine(event: Event, onDelete: () -> Unit) {
+private fun EventLine(event: Event, onEdit: () -> Unit, onDelete: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             if (event.isImportant) "★ ${event.title}" else event.title,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Filled.Edit, contentDescription = "일정 수정")
+        }
         IconButton(onClick = onDelete) {
             Icon(Icons.Filled.Close, contentDescription = "일정 삭제")
+        }
+    }
+}
+
+/** 일반 일정 저장 가능 여부: 제목이 비어 있지 않고 경고 이상이 아니며, 시작일이 있고 종료일이 시작일 이후다. */
+private fun isEventFormValid(title: String, startDate: LocalDate?, endDate: LocalDate?): Boolean =
+    title.isNotBlank() &&
+        TitleValidator.validate(title) !is TitleValidation.Invalid &&
+        startDate != null &&
+        (endDate == null || endDate >= startDate)
+
+/**
+ * 일정 추가·수정 폼의 공통 입력 칸(제목, 시작일, 종료일, 메모, 중요 표시).
+ * 시작일 칸만 호출하는 쪽에서 정한다(추가는 선택한 날짜의 읽기 전용 표시, 수정은 날짜 선택 필드).
+ */
+@Composable
+private fun EventFormFields(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    startDateField: @Composable () -> Unit,
+    endDate: LocalDate?,
+    onEndDateChange: (LocalDate?) -> Unit,
+    memo: String,
+    onMemoChange: (String) -> Unit,
+    isImportant: Boolean,
+    onImportantChange: (Boolean) -> Unit,
+) {
+    val titleValidation = TitleValidator.validate(title)
+
+    OutlinedTextField(
+        value = title,
+        onValueChange = onTitleChange,
+        label = { Text("제목 (최대 12자)") },
+        isError = titleValidation is TitleValidation.Invalid,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    when (titleValidation) {
+        is TitleValidation.Invalid -> Text(
+            titleValidation.reason,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        is TitleValidation.Warning -> Text(
+            titleValidation.message,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        TitleValidation.Ok -> Unit
+    }
+
+    startDateField()
+    DateTextField(
+        "종료일(선택, 여러 날에 걸친 일정만)",
+        endDate,
+        onEndDateChange,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
+    // 날짜 선택기는 값을 비울 수 없으므로, 여러 날 일정을 하루짜리로 되돌릴 수 있게 따로 지운다.
+    if (endDate != null) {
+        TextButton(onClick = { onEndDateChange(null) }) { Text("종료일 지우기") }
+    }
+    OutlinedTextField(
+        value = memo,
+        onValueChange = onMemoChange,
+        label = { Text("메모(선택, 장치에는 표시 안 됨)") },
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
+    Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = isImportant, onCheckedChange = onImportantChange)
+        Text("중요 일정으로 표시")
+    }
+}
+
+/** 기존 일반 일정 수정 폼. 시작일·종료일·제목·메모·중요 표시를 고칠 수 있다. */
+@Composable
+private fun EventEditForm(
+    event: Event,
+    onUpdate: (Event) -> Unit,
+    onClose: () -> Unit,
+) {
+    var title by remember(event.id) { mutableStateOf(event.title) }
+    var startDate by remember(event.id) { mutableStateOf<LocalDate?>(event.startDate) }
+    var endDate by remember(event.id) { mutableStateOf(event.endDate) }
+    var memo by remember(event.id) { mutableStateOf(event.memo.orEmpty()) }
+    var isImportant by remember(event.id) { mutableStateOf(event.isImportant) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .border(1.dp, MaterialTheme.colorScheme.onSurface)
+            .padding(8.dp),
+    ) {
+        Text("일정 수정", style = MaterialTheme.typography.titleSmall)
+        EventFormFields(
+            title = title,
+            onTitleChange = { title = it },
+            startDateField = {
+                DateTextField(
+                    "시작일",
+                    startDate,
+                    { startDate = it },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+            },
+            endDate = endDate,
+            onEndDateChange = { endDate = it },
+            memo = memo,
+            onMemoChange = { memo = it },
+            isImportant = isImportant,
+            onImportantChange = { isImportant = it },
+        )
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                enabled = isEventFormValid(title, startDate, endDate),
+                onClick = {
+                    startDate?.let { start ->
+                        onUpdate(
+                            event.copy(
+                                title = title.trim(),
+                                startDate = start,
+                                endDate = endDate,
+                                isImportant = isImportant,
+                                memo = memo.ifBlank { null },
+                            ),
+                        )
+                        onClose()
+                    }
+                },
+            ) { Text("수정 저장") }
+            TextButton(onClick = onClose) { Text("취소") }
         }
     }
 }
@@ -330,50 +514,20 @@ private fun AddEventSection(
             var endDate by remember(selectedDate) { mutableStateOf<LocalDate?>(null) }
             var isImportant by remember { mutableStateOf(false) }
             var memo by remember { mutableStateOf("") }
-            val titleValidation = TitleValidator.validate(title)
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("제목 (최대 12자)") },
-                isError = titleValidation is TitleValidation.Invalid,
-                modifier = Modifier.fillMaxWidth(),
+            EventFormFields(
+                title = title,
+                onTitleChange = { title = it },
+                startDateField = { DateTextFieldReadOnlyLabel(selectedDate, modifier = Modifier.padding(top = 8.dp)) },
+                endDate = endDate,
+                onEndDateChange = { endDate = it },
+                memo = memo,
+                onMemoChange = { memo = it },
+                isImportant = isImportant,
+                onImportantChange = { isImportant = it },
             )
-            when (titleValidation) {
-                is TitleValidation.Invalid -> Text(
-                    titleValidation.reason,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                is TitleValidation.Warning -> Text(
-                    titleValidation.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                TitleValidation.Ok -> Unit
-            }
-
-            DateTextFieldReadOnlyLabel(selectedDate, modifier = Modifier.padding(top = 8.dp))
-            DateTextField(
-                "종료일(선택, 여러 날에 걸친 일정만)",
-                endDate,
-                { endDate = it },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            )
-            OutlinedTextField(
-                value = memo,
-                onValueChange = { memo = it },
-                label = { Text("메모(선택, 장치에는 표시 안 됨)") },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            )
-            Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isImportant, onCheckedChange = { isImportant = it })
-                Text("중요 일정으로 표시")
-            }
-            val endDateValid = endDate == null || endDate!! >= selectedDate
             Button(
-                enabled = title.isNotBlank() && titleValidation !is TitleValidation.Invalid && endDateValid,
+                enabled = isEventFormValid(title, selectedDate, endDate),
                 onClick = {
                     onAddEvent(title.trim(), selectedDate, endDate, isImportant, memo.ifBlank { null })
                     title = ""

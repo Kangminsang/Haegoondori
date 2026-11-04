@@ -21,10 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
 import com.kangminsang.hagoondori.core.model.SyncState
+import com.kangminsang.hagoondori.data.repository.PendingChanges
 import kotlinx.datetime.Instant
 
 /** 마지막 동기화 후 이만큼 지나면 별도 안내를 띄운다(스펙 5.4절 - 달이 바뀌면 달력이 달라지므로). */
 private const val STALE_SYNC_DAYS = 14
+
+/** 변경 목록은 이만큼만 펼치고 나머지는 "외 N건"으로 줄인다. */
+private const val MAX_CHANGE_LINES = 20
 
 /**
  * 동기화 상태 배너(F18, 스펙 5.4절).
@@ -34,22 +38,24 @@ private const val STALE_SYNC_DAYS = 14
  * 눈에 띄게 경고하고 즉시 동기화 버튼을 제공한다. 둘 다 해당하지 않으면 배너
  * 자체를 그리지 않는다.
  *
- * 건수만으로는 "무엇이" 바뀌었는지 알 수 없다는 피드백이 있어, [changeLog]를 펼쳐
- * 각 변경의 설명을 확인할 수 있게 한다.
+ * [pendingChanges]는 건수가 아니라 **순 차이**다. 마지막으로 장치에 보낸 페이로드와 지금 데이터의
+ * 차이만 세므로, 근무를 추가했다가 지우면 0건이고 배너도 사라진다. "변경사항 보기"는 그 차이를
+ * 문장으로 보여준다. 순 차이 방식 이전에 쌓인 내역([PendingChanges.legacy])은 "(업데이트 전)"으로 따로 붙인다.
  */
 @Composable
 fun SyncStatusBanner(
     syncState: SyncState,
+    pendingChanges: PendingChanges,
     now: Instant,
     onSyncNow: () -> Unit,
     modifier: Modifier = Modifier,
-    changeLog: List<SyncChangeLogEntry> = emptyList(),
 ) {
     val lastSyncedAt = syncState.lastSyncedAt
     val staleDays = lastSyncedAt?.let { (now - it).inWholeDays }
     val isStale = lastSyncedAt == null || (staleDays != null && staleDays >= STALE_SYNC_DAYS)
+    val hasPending = pendingChanges.hasAny
 
-    if (!syncState.hasPendingChanges && !isStale) return
+    if (!hasPending && !isStale) return
 
     var showChangeLog by remember { mutableStateOf(false) }
 
@@ -61,9 +67,9 @@ fun SyncStatusBanner(
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    if (syncState.hasPendingChanges) {
+                    if (hasPending) {
                         Text(
-                            "동기화하지 않은 변경사항이 ${syncState.pendingChangeCount}건 있습니다",
+                            "동기화하지 않은 변경사항이 ${pendingChanges.count}건 있습니다",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
@@ -84,18 +90,41 @@ fun SyncStatusBanner(
                 TextButton(onClick = onSyncNow) { Text("지금 동기화") }
             }
 
-            if (syncState.hasPendingChanges && changeLog.isNotEmpty()) {
+            if (hasPending) {
                 TextButton(onClick = { showChangeLog = !showChangeLog }) {
                     Text(if (showChangeLog) "변경사항 숨기기" else "변경사항 보기")
                 }
                 if (showChangeLog) {
                     Divider(color = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
-                    changeLog.forEach { entry ->
-                        ChangeLogLine(entry, now)
-                    }
+                    PendingChangeList(pendingChanges, now)
                 }
             }
         }
+    }
+}
+
+/** 순 차이 문장(시각 없이, 최대 [MAX_CHANGE_LINES]줄)과, 예전 변경 내역(시각 포함)을 차례로 보여준다. */
+@Composable
+private fun PendingChangeList(pendingChanges: PendingChanges, now: Instant) {
+    pendingChanges.changes.take(MAX_CHANGE_LINES).forEach { line ->
+        Text(
+            line,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        )
+    }
+    val hidden = pendingChanges.changes.size - MAX_CHANGE_LINES
+    if (hidden > 0) {
+        Text(
+            "외 ${hidden}건",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        )
+    }
+    pendingChanges.legacy.forEach { entry ->
+        ChangeLogLine(entry, now)
     }
 }
 
@@ -106,7 +135,7 @@ private fun ChangeLogLine(entry: SyncChangeLogEntry, now: Instant) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
-            entry.description,
+            "(업데이트 전) ${entry.description}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.weight(1f),

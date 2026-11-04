@@ -13,6 +13,8 @@ import com.kangminsang.hagoondori.data.repository.PassRepository
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.coroutines.flow.first
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,13 +34,22 @@ class SnapshotBuilder @Inject constructor(
     private val dutyRepository: DutyRepository,
     private val passRepository: PassRepository,
 ) {
-    /** 복무 정보가 아직 없으면 스냅샷을 만들 수 없으므로 null을 반환한다. */
-    suspend fun build(): CalendarSnapshot? {
+    /**
+     * 복무 정보가 아직 없으면 스냅샷을 만들 수 없으므로 null을 반환한다.
+     *
+     * [generatedAt]과 범위를 주지 않으면 지금 시각과 오늘 기준 전송 범위를 쓴다. 변경 비교처럼
+     * 지난 페이로드와 같은 조건으로 다시 만들어야 할 때만 값을 넘긴다.
+     */
+    suspend fun build(
+        generatedAt: Instant = AppClock.now(),
+        rangeStart: LocalDate? = null,
+        rangeEnd: LocalDate? = null,
+    ): CalendarSnapshot? {
         val profile = profileRepository.get() ?: return null
 
         val today = AppClock.today()
-        val rangeStart = TransmissionRange.start(today)
-        val rangeEnd = TransmissionRange.end(today)
+        val start = rangeStart ?: TransmissionRange.start(today)
+        val end = rangeEnd ?: TransmissionRange.end(today)
 
         val nextOvernightDate = profile.firstOvernightDate?.let { first ->
             val records = overnightRepository.observeRecords().first()
@@ -47,9 +58,9 @@ class SnapshotBuilder @Inject constructor(
         }
 
         return CalendarSnapshot(
-            generatedAt = AppClock.now(),
-            rangeStart = rangeStart,
-            rangeEnd = rangeEnd,
+            generatedAt = generatedAt,
+            rangeStart = start,
+            rangeEnd = end,
             profile = profile,
             nextOvernightDate = nextOvernightDate,
             holidays = holidayRepository.getAll(),

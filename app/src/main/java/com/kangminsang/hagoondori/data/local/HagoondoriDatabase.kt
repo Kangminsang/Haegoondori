@@ -74,7 +74,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         const val DATABASE_NAME = "hagoondori.db"
 
         /** 현재 스키마 버전. `@Database(version = ...)`과 같은 값이며, 백업 파일의 호환성 판정에도 쓴다. */
-        const val VERSION = 8
+        const val VERSION = 9
 
         /**
          * 마이그레이션 전체와 [SEED_DEFAULT_LEAVE_TYPES]를 갖춘 DB를 만든다. 앱 DB([DATABASE_NAME])와
@@ -84,6 +84,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
             Room.databaseBuilder(context, HagoondoriDatabase::class.java, name)
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                    MIGRATION_8_9,
                 )
                 .addCallback(SEED_DEFAULT_LEAVE_TYPES)
                 .build()
@@ -135,6 +136,16 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 seedDefaultLeaveTypes(db)
+            }
+        }
+
+        /**
+         * 마지막으로 장치에 보낸 페이로드 전문을 `sync_state`에 둔다. "동기화하지 않은 변경"을 순 차이로
+         * 계산하는 기준이다. 기존 행은 값이 없는 상태(null)로 남고, 그 상태는 PendingChangesTracker가 처음 열 때 채운다.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sync_state ADD COLUMN syncedPayload TEXT")
             }
         }
 

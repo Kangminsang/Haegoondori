@@ -3,6 +3,7 @@ package com.kangminsang.hagoondori.export
 import com.kangminsang.hagoondori.core.export.ExportAdapter
 import com.kangminsang.hagoondori.core.export.ExportResult
 import com.kangminsang.hagoondori.core.export.FailureReason
+import com.kangminsang.hagoondori.core.payload.PayloadEncoder
 import com.kangminsang.hagoondori.data.repository.SyncStateRepository
 import com.kangminsang.hagoondori.di.FakeAdapter
 import com.kangminsang.hagoondori.di.RealAdapter
@@ -25,7 +26,10 @@ class DeviceSyncService @Inject constructor(
     suspend fun syncToDevice(): ExportResult {
         val snapshot = snapshotBuilder.build() ?: return NO_PROFILE
         val result = realAdapter.export(snapshot)
-        if (result is ExportResult.Success) syncStateRepository.markSynced(AppClock.now())
+        // 방금 보낸 것과 같은 전문을 기준으로 남겨야, 이후 "동기화하지 않은 변경"이 순 차이로 정확히 잡힌다.
+        if (result is ExportResult.Success) {
+            syncStateRepository.markSynced(AppClock.now(), PayloadEncoder.encode(snapshot))
+        }
         return result
     }
 

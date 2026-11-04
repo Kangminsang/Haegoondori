@@ -13,6 +13,7 @@ import com.kangminsang.hagoondori.data.remote.holiday.HolidayApiKeyStore
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayFetchResult
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayRemoteRepository
 import com.kangminsang.hagoondori.data.repository.HolidayRepository
+import com.kangminsang.hagoondori.data.repository.PendingChangesTracker
 import com.kangminsang.hagoondori.data.repository.ProfileRepository
 import com.kangminsang.hagoondori.data.repository.SyncStateRepository
 import com.kangminsang.hagoondori.export.DeviceFolderCheck
@@ -36,6 +37,7 @@ class SettingsViewModel @Inject constructor(
     private val holidayRepository: HolidayRepository,
     private val holidayRemoteRepository: HolidayRemoteRepository,
     private val syncStateRepository: SyncStateRepository,
+    private val pendingChangesTracker: PendingChangesTracker,
     private val deviceStorageAccess: DeviceStorageAccess,
     private val deviceSyncService: DeviceSyncService,
     private val holidayApiKeyStore: HolidayApiKeyStore,
@@ -46,13 +48,13 @@ class SettingsViewModel @Inject constructor(
         profileRepository.observe(),
         holidayRepository.observeAll(),
         syncStateRepository.observe(),
-        syncStateRepository.observeChangeLog(),
-    ) { profile, holidays, syncState, changeLog ->
+        pendingChangesTracker.observe(),
+    ) { profile, holidays, syncState, pendingChanges ->
         SettingsUiState(
             profile = profile,
             holidays = holidays.sortedBy { it.date },
             syncState = syncState,
-            syncChangeLog = changeLog,
+            pendingChanges = pendingChanges,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 

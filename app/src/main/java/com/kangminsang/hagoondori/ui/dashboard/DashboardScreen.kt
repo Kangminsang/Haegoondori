@@ -79,9 +79,9 @@ fun DashboardScreen(
             item {
                 SyncStatusBanner(
                     syncState = uiState.syncState,
+                    pendingChanges = uiState.pendingChanges,
                     now = AppClock.now(),
                     onSyncNow = onNavigateToSync,
-                    changeLog = uiState.syncChangeLog,
                 )
             }
 
