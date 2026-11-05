@@ -83,6 +83,15 @@ fun ServiceStatsScreen(
             item { HeadlineCard(stats, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item { PassedCard(stats, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item { RemainingCard(uiState, stats, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item {
+                Text(
+                    "식사는 부대에서 먹는 하루 3끼로 셉니다. 휴가·외박한 날은 빼고, " +
+                        "평일 외출은 저녁 1끼, 휴일 외출은 점심·저녁 2끼를 뺍니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
         }
     }
 }
@@ -111,7 +120,7 @@ private fun HeadlineCard(stats: ServiceStats, modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                HeadlineStat("남은 식사", "${n(stats.remainingMeals.toLong())}끼", Modifier.weight(1f))
+                HeadlineStat("남은 식사", "${n(stats.remaining.meals.toLong())}끼", Modifier.weight(1f))
                 StatDivider()
                 HeadlineStat("지금까지 출타한 날", "${n(stats.passed.outingDays.toLong())}일", Modifier.weight(1f))
             }
@@ -126,6 +135,7 @@ private fun PassedCard(stats: ServiceStats, modifier: Modifier = Modifier) {
             StatSectionTitle("지나간 군생활")
             PlanRow("지난 날", "${n(stats.passed.days.toLong())}일 / 전체 ${n(stats.totalDays.toLong())}일")
             PlanRow("부대에서 보낸 날", "${n(stats.passed.onBaseDays.toLong())}일")
+            PlanRow("먹은 식사", "${n(stats.passed.meals.toLong())}끼")
             PlanRow("출타한 날", "${stats.passed.outingDays}일 (${"%.1f".format(Locale.US, stats.outingRatioPercent)}%)")
             PlanRow("지난 주말 · 공휴일", "${stats.passed.weekendDays}일 · ${stats.passed.publicHolidays}일")
             PlanRow("휴가로 보낸 날", "${stats.leaveDays.past}일")
@@ -143,6 +153,7 @@ private fun RemainingCard(uiState: DashboardUiState, stats: ServiceStats, modifi
             StatSectionTitle("남은 군생활")
             PlanRow("남은 날", "${n(stats.remaining.days.toLong())}일")
             PlanRow("주 · 개월로", remainingSpanText(stats))
+            PlanRow("남은 식사", "${n(stats.remaining.meals.toLong())}끼")
             PlanRow("남은 밤", "${n(stats.remainingNights.toLong())}번")
             PlanRow("남은 주말 · 공휴일", "${stats.remaining.weekendDays}일 · ${stats.remaining.publicHolidays}일")
             PlanRow("쉬는 날(주말+공휴일)", "${stats.remaining.restDays}일")

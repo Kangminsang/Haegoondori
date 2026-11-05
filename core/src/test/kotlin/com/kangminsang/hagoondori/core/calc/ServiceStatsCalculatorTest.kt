@@ -114,8 +114,30 @@ class ServiceStatsCalculatorTest {
         assertEquals(0, stats.remainingWeeksExtraDays)
         assertEquals(0, stats.remainingMonths)
         assertEquals(14, stats.remainingMonthsExtraDays)
-        assertEquals(42, stats.remainingMeals)
         assertEquals(14, stats.remainingNights)
+    }
+
+    @Test
+    fun `meals skip outing days and subtract meals missed by passes`() {
+        val stats = full()
+        // 지난 부대 생활 1/5, 6, 7 = 9끼에서 1/6 평일 외출 저녁 1끼를 뺀다.
+        assertEquals(8, stats.passed.meals)
+        // 남은 부대 생활 10일 = 30끼. 1/12 외출은 휴가 중이라 다시 빼지 않고, 1/30은 복무 기간 밖이다.
+        assertEquals(30, stats.remaining.meals)
+    }
+
+    @Test
+    fun `holiday pass misses two meals and same day passes count once`() {
+        val stats = ServiceStatsCalculator.calculate(
+            enlistment, discharge, today,
+            passRecords = listOf(
+                PassRecord("p1", d(17), PassType.HOLIDAY),
+                PassRecord("p2", d(19), PassType.WEEKDAY),
+                PassRecord("p3", d(19), PassType.HOLIDAY),
+            ),
+        )
+        assertEquals(14 * 3 - 2 - 2, stats.remaining.meals)
+        assertEquals(7 * 3, stats.passed.meals)
     }
 
     @Test
@@ -177,7 +199,7 @@ class ServiceStatsCalculatorTest {
             assertEquals(0, stats.remaining.days)
             assertEquals(0, stats.remainingMonths)
             assertEquals(0, stats.remainingMonthsExtraDays)
-            assertEquals(0, stats.remainingMeals)
+            assertEquals(0, stats.remaining.meals)
             assertEquals(100.0, stats.progressPercent)
         }
     }

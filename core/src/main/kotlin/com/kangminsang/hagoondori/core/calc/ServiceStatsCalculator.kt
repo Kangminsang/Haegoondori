@@ -7,6 +7,7 @@ import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.PassRecord
+import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.core.model.Promotion
 import com.kangminsang.hagoondori.core.model.PromotionDates
 import kotlinx.datetime.DateTimeUnit
@@ -28,6 +29,8 @@ data class PastAndUpcoming(val past: Int, val upcoming: Int) {
  * @property publicHolidays 공휴일 목록에 있는 날짜 수(같은 날 이름이 둘이어도 한 번, 주말과 겹쳐도 센다).
  * @property restDays 주말이거나 공휴일인 날 수([HolidayJudge.isHoliday] 기준, 겹치면 한 번).
  * @property outingDays 휴가·외박으로 부대 밖에 있는(있을) 날 수. 휴가와 외박이 겹친 날은 한 번만 센다.
+ * @property meals 부대에서 먹는(먹은) 식사 수. 하루 3끼에서 출타일은 모두 빼고, 외출한 날은
+ *   [ServiceStatsCalculator.mealsMissedByPass]만큼 뺀다.
  */
 data class PeriodStats(
     val days: Int,
@@ -35,6 +38,7 @@ data class PeriodStats(
     val publicHolidays: Int,
     val restDays: Int,
     val outingDays: Int,
+    val meals: Int,
 ) {
     /** 부대 안에서 보내는(보낸) 날 = 구간 일수 − 출타한 날. */
     val onBaseDays: Int get() = days - outingDays
@@ -65,8 +69,6 @@ data class ServiceStats(
     /** 남은 기간을 달력상 `n개월 m일`로 나눈 값(오늘부터 같은 날짜로 n개월 뒤, 그 뒤 남는 일수). */
     val remainingMonths: Int,
     val remainingMonthsExtraDays: Int,
-    /** 남은 식사 = 남은 일수 × 3끼. */
-    val remainingMeals: Int,
     /** 남은 밤 = 남은 일수(오늘 밤부터 전역 전날 밤까지). */
     val remainingNights: Int,
     /** 지금까지 지난 날 중 출타한 날의 비율(%). 지난 날이 없으면 0. */
@@ -91,6 +93,12 @@ data class ServiceStats(
  */
 object ServiceStatsCalculator {
     const val MEALS_PER_DAY = 3
+
+    /** 외출로 거르는 부대 식사: 평일 외출은 저녁 1끼, 휴일 외출은 점심·저녁 2끼. */
+    fun mealsMissedByPass(type: PassType): Int = when (type) {
+        PassType.WEEKDAY -> 1
+        PassType.HOLIDAY -> 2
+    }
 
     fun calculate(
         enlistmentDate: LocalDate,
@@ -118,12 +126,17 @@ object ServiceStatsCalculator {
             nextOvernightDate?.takeIf { it >= today }?.let(::add)
         }
 
+        // 같은 날 외출 기록이 둘이면 더 많이 거르는 쪽 하나만 센다.
+        val passMealsMissed = passRecords.groupBy { it.date }
+            .mapValues { (_, records) -> records.maxOf { mealsMissedByPass(it.type) } }
+
         fun period(from: LocalDate, until: LocalDate): PeriodStats {
             var days = 0
             var weekend = 0
             var publicHoliday = 0
             var rest = 0
             var outing = 0
+            var meals = 0
             var date = from
             while (date < until) {
                 days++
@@ -132,10 +145,14 @@ object ServiceStatsCalculator {
                 if (isWeekend) weekend++
                 if (isPublicHoliday) publicHoliday++
                 if (isWeekend || isPublicHoliday) rest++
-                if (date in outingDates) outing++
+                if (date in outingDates) {
+                    outing++
+                } else {
+                    meals += MEALS_PER_DAY - (passMealsMissed[date] ?: 0)
+                }
                 date = date.plus(1, DateTimeUnit.DAY)
             }
-            return PeriodStats(days, weekend, publicHoliday, rest, outing)
+            return PeriodStats(days, weekend, publicHoliday, rest, outing, meals)
         }
 
         val passed = period(enlistmentDate, split)
@@ -163,7 +180,6 @@ object ServiceStatsCalculator {
             remainingWeeksExtraDays = remaining.days % 7,
             remainingMonths = remainingMonths,
             remainingMonthsExtraDays = remainingMonthsExtraDays,
-            remainingMeals = remaining.days * MEALS_PER_DAY,
             remainingNights = remaining.days,
             outingRatioPercent = if (passed.days == 0) 0.0 else passed.outingDays * 100.0 / passed.days,
             leaveDays = splitDates(leaveDates),
