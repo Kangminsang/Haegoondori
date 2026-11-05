@@ -218,20 +218,22 @@ fun CalendarScreen(
                 }
             } else {
                 LastActionBanner(lastAction)
-                uiState.selectedTrip?.let { trip ->
-                    TripLine(
-                        trip,
-                        onEdit = {
-                            mode = CalendarMode.LEAVE_PLAN
-                            lastAction = null
-                            editingEventId = null
-                            viewModel.editTrip(trip.start, trip.end)
-                        },
-                        onDelete = { viewModel.deleteTrip(trip.start, trip.end) { lastAction = it } },
-                    )
-                }
                 SelectedDayDetail(
                     uiState.selectedDayInfo,
+                    tripLine = {
+                        uiState.selectedTrip?.let { trip ->
+                            TripLine(
+                                trip,
+                                onEdit = {
+                                    mode = CalendarMode.LEAVE_PLAN
+                                    lastAction = null
+                                    editingEventId = null
+                                    viewModel.editTrip(trip.start, trip.end)
+                                },
+                                onDelete = { viewModel.deleteTrip(trip.start, trip.end) { lastAction = it } },
+                            )
+                        }
+                    },
                     onDeleteEvent = viewModel::deleteEvent,
                     onDeletePass = viewModel::deletePass,
                     onDeleteDuty = viewModel::deleteDuty,
@@ -328,26 +330,32 @@ private fun LastActionBanner(lastAction: String?) {
     }
 }
 
-/** 보기 모드에서 고른 날이 속한 출타: "이번 출타: 9/22~9/28 7일 (외박1 포상3 연가3)" + [수정] [삭제]. */
+/**
+ * 보기 모드에서 고른 날이 속한 출타: "이번 출타: 9/22~9/28 7일 (외박1 포상3 연가3)" + [수정] [삭제] 아이콘.
+ * 같은 상세 영역의 일정 줄([EventLine])과 같은 모양이고, 삭제는 확인 다이얼로그를 거친다.
+ */
 @Composable
 private fun TripLine(trip: TripSummary, onEdit: () -> Unit, onDelete: () -> Unit) {
     var confirmingDelete by remember(trip) { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             "이번 출타: ${trip.start.slashLabel()}~${trip.end.slashLabel()} ${trip.totalDays}일 (${trip.partsText})",
             style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onEdit) { Text("수정") }
-            if (confirmingDelete) {
-                TextButton(onClick = { confirmingDelete = false; onDelete() }) {
-                    Text("정말 삭제", color = MaterialTheme.colorScheme.error)
-                }
-                TextButton(onClick = { confirmingDelete = false }) { Text("취소") }
-            } else {
-                TextButton(onClick = { confirmingDelete = true }) { Text("삭제") }
-            }
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Filled.Edit, contentDescription = "출타 수정")
         }
+        IconButton(onClick = { confirmingDelete = true }) {
+            Icon(Icons.Filled.Close, contentDescription = "출타 삭제")
+        }
+    }
+    if (confirmingDelete) {
+        DeleteTripDialog(
+            message = "${trip.start.slashLabel()}~${trip.end.slashLabel()} 출타의 휴가·외박 기록을 모두 지웁니다.",
+            onConfirm = { confirmingDelete = false; onDelete() },
+            onDismiss = { confirmingDelete = false },
+        )
     }
 }
 
@@ -382,6 +390,8 @@ private fun MonthHeader(year: Int, month: Int, onPrevious: () -> Unit, onNext: (
 @Composable
 private fun SelectedDayDetail(
     day: CalendarDayInfo?,
+    /** 고른 날이 속한 출타 줄. 휴가·외박 줄 바로 아래에 그린다. */
+    tripLine: @Composable () -> Unit,
     onDeleteEvent: (Event) -> Unit,
     onDeletePass: (PassRecord) -> Unit,
     onDeleteDuty: (DutyAssignment) -> Unit,
@@ -417,6 +427,7 @@ private fun SelectedDayDetail(
         day.leaveNames.forEach { DetailLine("$it 사용일") }
         if (day.hasCombatRest) DetailLine("전투휴무 사용일")
         if (day.hasOvernight) DetailLine("외박일")
+        tripLine()
         day.passRecords.forEach { record ->
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(

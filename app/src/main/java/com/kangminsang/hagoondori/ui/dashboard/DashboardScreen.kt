@@ -40,7 +40,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Context
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
@@ -144,11 +143,11 @@ private val LocalUnitToggled = staticCompositionLocalOf<() -> Unit> { {} }
 @Composable
 private fun rememberDayCountUnit(): MutableState<DayCountUnit> = rememberSaveable { mutableStateOf(DayCountUnit.DAY) }
 
-/** 누를 때마다 [unit]을 일 → 시간 → 분 → 일로 바꾼다. 눌리는 영역이 보이도록 살짝 둥근 물결 효과를 준다. */
+/** 누를 때마다 [unit]을 일 → 시간 → 분 → 일로 바꾼다. 눌린 영역은 카드·버튼과 같은 각진 모양으로 물결이 퍼진다. */
 @Composable
 private fun Modifier.toggleUnitOnClick(unit: MutableState<DayCountUnit>): Modifier {
     val onToggled = LocalUnitToggled.current
-    return clip(RoundedCornerShape(4.dp)).clickable(onClickLabel = "시간 단위 바꾸기") {
+    return clip(MaterialTheme.shapes.small).clickable(onClickLabel = "시간 단위 바꾸기") {
         unit.value = unit.value.next()
         onToggled()
     }
@@ -224,8 +223,8 @@ private fun ServiceProgressCard(uiState: DashboardUiState, showUnitHint: Boolean
                     if (showUnitHint) {
                         Text(
                             "남은 날짜를 누르면 시간·분으로 바뀌어요",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outlineVariant,
                         )
                     }
                     Text(
@@ -539,7 +538,7 @@ private fun ServiceStatsCard(uiState: DashboardUiState, modifier: Modifier = Mod
             Text(
                 funFact(stats),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
 
@@ -597,39 +596,34 @@ private fun ServiceStatsCard(uiState: DashboardUiState, modifier: Modifier = Mod
 
             TextButton(
                 onClick = { expanded = !expanded },
-                modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
+                modifier = Modifier.padding(top = 4.dp),
             ) { Text(if (expanded) "접기" else "더 보기") }
         }
     }
 }
 
+/** 접힌 통계 카드의 숫자 하나. 전역 카드의 [LiveTimeStat]과 같은 글자 크기·배치(라벨 위, 굵은 값 아래). */
 @Composable
 private fun HeadlineStat(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+        Text(value, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
     }
 }
 
+/** 펼친 통계의 소제목. 휴가 관리 카드의 "부여 내역" 같은 카드 안 소제목과 같은 모양. */
 @Composable
 private fun StatSectionTitle(title: String) {
     Text(
         title,
-        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-        modifier = Modifier.padding(top = 16.dp),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
     )
 }
 
+/** 통계 한 줄. "다음 외출" 줄([PlanRow])과 같은 라벨 왼쪽·값 오른쪽 배치를 쓴다. */
 @Composable
-private fun StatRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
-    }
-}
+private fun StatRow(label: String, value: String) = PlanRow(label, value)
 
 /** 근무 종류별 횟수를 `당직 3회 · 비번 3회`처럼. 한 번도 없으면 null(줄을 숨긴다). */
 private fun dutySummary(counts: Map<DutyType, PastAndUpcoming>, pick: (PastAndUpcoming) -> Int): String? =

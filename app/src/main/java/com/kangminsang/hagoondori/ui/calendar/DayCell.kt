@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -100,12 +101,15 @@ fun DayCell(
             duties.forEach { DutyChip(it, size = if (crowded) 13.dp else 16.dp, fontSize = if (crowded) 9.sp else 11.sp) }
         }
         if (planLabel != null) {
+            // 근무 칩 유무와 상관없이 같은 줄에 오도록 칸 아래쪽에 붙인다. 휴가·외박 막대와 같은 적색,
+            // 날짜 숫자와 같은 갈무리11 크기(굵게)로 써서 칸 안에서 숫자보다 튀지 않게 한다.
+            Spacer(Modifier.weight(1f))
             Text(
                 planLabel,
                 color = colors.error,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
             )
         }
     }
