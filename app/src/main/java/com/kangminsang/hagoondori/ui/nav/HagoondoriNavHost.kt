@@ -26,7 +26,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kangminsang.hagoondori.ui.calendar.CalendarOpenRequest
 import com.kangminsang.hagoondori.ui.calendar.CalendarScreen
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.kangminsang.hagoondori.ui.dashboard.DashboardScreen
+import com.kangminsang.hagoondori.ui.dashboard.DashboardViewModel
+import com.kangminsang.hagoondori.ui.dashboard.ServiceStatsScreen
 import com.kangminsang.hagoondori.ui.leave.LeaveManagementScreen
 import com.kangminsang.hagoondori.ui.settings.SettingsScreen
 
@@ -70,6 +73,16 @@ fun HagoondoriNavHost(
                             restoreState = true
                         }
                     },
+                    onOpenServiceStats = { navController.navigate(SERVICE_STATS_ROUTE) { launchSingleTop = true } },
+                )
+            }
+            // 대시보드 탭 아래의 하위 페이지. 대시보드와 같은 ViewModel 인스턴스를 써서 다시 계산하지 않는다
+            // (대시보드는 시작 화면이라 백스택에서 빠지지 않는다).
+            composable(SERVICE_STATS_ROUTE) { entry ->
+                val dashboardEntry = remember(entry) { navController.getBackStackEntry(HagoondoriDestination.Dashboard.route) }
+                ServiceStatsScreen(
+                    viewModel = hiltViewModel<DashboardViewModel>(dashboardEntry),
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(HagoondoriDestination.Calendar.route) {
@@ -86,18 +99,34 @@ fun HagoondoriNavHost(
     }
 }
 
+/** 대시보드 탭 아래의 군생활 통계 페이지. 하단 탭에는 없고, 대시보드의 "전역까지"를 눌러 연다. */
+private const val SERVICE_STATS_ROUTE = "service_stats"
+
+/** 하위 페이지가 어느 탭에 속하는지. 그 페이지에 있는 동안 해당 탭을 선택된 것으로 그린다. */
+private fun tabOf(route: String?): String? = when (route) {
+    SERVICE_STATS_ROUTE -> HagoondoriDestination.Dashboard.route
+    else -> route
+}
+
 @Composable
 private fun HagoondoriBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val currentTab = tabOf(currentRoute)
 
     Column {
     HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outline)
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         HagoondoriDestination.entries.forEach { destination ->
             NavigationBarItem(
-                selected = currentRoute == destination.route,
+                selected = currentTab == destination.route,
                 onClick = {
+                    // 탭의 하위 페이지(군생활 통계 등)에서 같은 탭을 다시 누르면 그 탭 첫 화면으로 돌아간다.
+                    // 아래 표준 패턴으로 가면 저장된 하위 페이지가 다시 복원되어 제자리에 머문다.
+                    if (currentTab == destination.route && currentRoute != destination.route) {
+                        navController.popBackStack(destination.route, inclusive = false)
+                        return@NavigationBarItem
+                    }
                     // 탭을 반복 클릭해도 백스택이 계속 쌓이지 않도록 표준 패턴을 따른다:
                     // 시작 목적지까지 popUp하되 상태는 저장하고, 최상단 중복은 만들지 않는다.
                     navController.navigate(destination.route) {

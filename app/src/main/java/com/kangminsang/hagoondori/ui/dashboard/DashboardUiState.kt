@@ -33,7 +33,7 @@ data class LeaveTypeSummary(
 data class PromotionMarker(val label: String, val progressPercent: Double, val passed: Boolean)
 
 /** 다음 진급까지의 상태. [progressPercent]는 직전 진급(또는 입대)부터 이 진급까지 중 지금까지 온 정도. */
-data class NextPromotion(val label: String, val date: LocalDate, val dDay: Int, val progressPercent: Double)
+data class NextPromotion(val label: String, val dDay: Int, val progressPercent: Double)
 
 /** ① 대시보드(스펙 5.1/5.2절) 화면 상태. */
 data class DashboardUiState(
@@ -52,7 +52,7 @@ data class DashboardUiState(
     val nextOuting: OutingPeriod? = null,
     /** 오늘 이후 가장 가까운 외출. 없으면 null. */
     val nextPass: LocalDate? = null,
-    /** 군생활 통계 카드 값. 복무 정보가 없으면 null. */
+    /** 군생활 통계 페이지 값. 복무 정보가 없으면 null. */
     val serviceStats: ServiceStats? = null,
     /** 전역 전까지 남은 외박 횟수(등록한 것 + 예정). 첫 외박일을 모르면 null. */
     val remainingOvernightCount: Int? = null,

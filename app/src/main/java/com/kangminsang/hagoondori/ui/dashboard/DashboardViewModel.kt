@@ -201,7 +201,6 @@ class DashboardViewModel @Inject constructor(
                 ServiceScheduleCalculator.nextPromotion(it.promotionDates, today)?.let { (rank, date) ->
                     NextPromotion(
                         label = rank.label,
-                        date = date,
                         dDay = DDayCalculator.dDay(today, date),
                         progressPercent = ServiceScheduleCalculator.progressToNextPromotion(
                             it.enlistmentDate, it.promotionDates, date, today,
