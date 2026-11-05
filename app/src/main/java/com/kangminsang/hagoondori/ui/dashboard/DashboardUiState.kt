@@ -6,6 +6,7 @@ import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.core.calc.CombatRestSummary
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
+import com.kangminsang.hagoondori.core.calc.ServiceStats
 import com.kangminsang.hagoondori.data.repository.PendingChanges
 import kotlinx.datetime.LocalDate
 
@@ -51,6 +52,10 @@ data class DashboardUiState(
     val nextOuting: OutingPeriod? = null,
     /** 오늘 이후 가장 가까운 외출. 없으면 null. */
     val nextPass: LocalDate? = null,
+    /** 군생활 통계 페이지 값. 복무 정보가 없으면 null. */
+    val serviceStats: ServiceStats? = null,
+    /** 전역 전까지 남은 외박 횟수(등록한 것 + 예정). 첫 외박일을 모르면 null. */
+    val remainingOvernightCount: Int? = null,
     val syncState: SyncState = SyncState(),
     /** 동기화하지 않은 변경(순 차이)과 예전 변경 내역. 배너가 쓴다. */
     val pendingChanges: PendingChanges = PendingChanges(),

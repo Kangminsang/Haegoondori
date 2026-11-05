@@ -22,6 +22,8 @@ val Galmuri14 = FontFamily(Font(R.font.galmuri14, FontWeight.Normal))
 val HagoondoriTypography = Typography(
     titleLarge = TextStyle(fontFamily = Galmuri14, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 30.sp),
     titleMedium = TextStyle(fontFamily = Galmuri14, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 24.sp),
+    // 카드 안 소제목(부여 내역, 일정 수정 등). 지정하지 않으면 Material 기본(시스템 글꼴)으로 그려져 갈무리와 섞인다.
+    titleSmall = TextStyle(fontFamily = Galmuri11, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 20.sp),
     bodyLarge = TextStyle(fontFamily = Galmuri11, fontSize = 16.sp, lineHeight = 24.sp),
     bodyMedium = TextStyle(fontFamily = Galmuri11, fontSize = 14.sp, lineHeight = 20.sp),
     bodySmall = TextStyle(fontFamily = Galmuri11, fontSize = 12.sp, lineHeight = 16.sp),

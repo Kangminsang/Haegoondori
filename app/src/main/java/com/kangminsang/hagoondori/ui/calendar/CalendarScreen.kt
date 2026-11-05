@@ -47,10 +47,15 @@ import com.kangminsang.hagoondori.ui.duty.dutyTypeLabel
 import com.kangminsang.hagoondori.core.validation.TitleValidation
 import com.kangminsang.hagoondori.core.validation.TitleValidator
 import com.kangminsang.hagoondori.ui.common.DateTextField
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
+
+/** 달력 화면 모드: 보기, 근무·외출 탭 입력(F6), 휴가 계획(기간을 고르고 종류별로 나눔). */
+enum class CalendarMode { VIEW, DUTY_INPUT, LEAVE_PLAN }
 
 /**
- * ② 달력 (스펙 5.1/5.2절, F3) - 월간 달력 + 날짜별 항목 표시, 그리고 근무·외출 탭 입력 모드(F6).
+ * ② 달력 (스펙 5.1/5.2절, F3) - 월간 달력 + 날짜별 항목 표시, 근무·외출 탭 입력 모드(F6), 휴가 계획 모드.
  * 휴가/전투휴무/외박/외출을 시각적으로 구분한다.
  */
 @Composable
@@ -66,13 +71,14 @@ fun CalendarScreen(
     // 근무·외출 입력 모드(F6): 입력할 종류를 고른 뒤 날짜를 누르면 바로 저장되고, 이미 있는 날을 다시 누르면 지워진다(토글).
     // 예전의 여러 날짜 선택 후 일괄 저장 방식은 빠뜨리기 쉬워 이 방식으로 바꿨다.
     // 예전의 별도 '근무입력' 탭은 이 달력과 격자·기능이 겹쳐 이 모드로 합쳤다.
-    var inputMode by remember { mutableStateOf(false) }
+    // 휴가 계획 모드: 시작일·종료일을 차례로 눌러 기간을 고른 뒤 아래 패널에서 외박·휴가 종류별 일수를 나눈다.
+    var mode by remember { mutableStateOf(CalendarMode.VIEW) }
     var selectedType by remember { mutableStateOf(DutyType.DUTY) }
     var isPassMode by remember { mutableStateOf(false) }
     var addingEvent by remember { mutableStateOf(false) }
     /** 수정 중인 일반 일정의 id. 날짜를 바꾸거나 입력 모드에 들어가면 비운다. */
     var editingEventId by remember { mutableStateOf<String?>(null) }
-    /** 입력 모드에서 방금 한 토글의 안내 문구. 입력 모드를 나가면 비운다. */
+    /** 방금 한 토글·계획 저장·출타 삭제의 안내 문구. 모드를 바꾸면 비운다. */
     var lastAction by remember { mutableStateOf<String?>(null) }
 
     // 선택한 날짜가 바뀌면 수정 중이던 일정 폼은 닫는다(다른 날의 일정을 가리키지 않도록).
@@ -83,7 +89,8 @@ fun CalendarScreen(
     // 위젯에서 날짜를 골랐다면 근무 입력 모드를 끄고(방금 한 입력 안내도 버린다) 그 날짜를 보여 준다.
     LaunchedEffect(openRequest) {
         val request = openRequest ?: return@LaunchedEffect
-        inputMode = false
+        mode = CalendarMode.VIEW
+        viewModel.clearPlan()
         lastAction = null
         request.date?.let(viewModel::showDate)
         onOpenRequestHandled()
@@ -105,19 +112,27 @@ fun CalendarScreen(
             )
 
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !inputMode,
-                    onClick = { inputMode = false; lastAction = null },
-                    label = { Text("보기") },
-                )
-                FilterChip(
-                    selected = inputMode,
-                    onClick = { inputMode = true; editingEventId = null },
-                    label = { Text("근무·외출 입력") },
-                )
+                listOf(
+                    CalendarMode.VIEW to "보기",
+                    CalendarMode.DUTY_INPUT to "근무·외출 입력",
+                    CalendarMode.LEAVE_PLAN to "휴가 계획",
+                ).forEach { (chipMode, label) ->
+                    FilterChip(
+                        selected = mode == chipMode,
+                        onClick = {
+                            if (mode != chipMode) {
+                                mode = chipMode
+                                lastAction = null
+                                editingEventId = null
+                                viewModel.clearPlan()
+                            }
+                        },
+                        label = { Text(label) },
+                    )
+                }
             }
 
-            if (inputMode) {
+            if (mode == CalendarMode.DUTY_INPUT) {
                 TypeChoiceRow(
                     selectedType = selectedType,
                     isPassMode = isPassMode,
@@ -129,14 +144,20 @@ fun CalendarScreen(
 
             MonthGrid(
                 days = uiState.days,
-                selectedDates = if (inputMode) emptySet() else setOfNotNull(uiState.selectedDate),
-                fillSelected = false,
+                selectedDates = when (mode) {
+                    CalendarMode.VIEW -> setOfNotNull(uiState.selectedDate)
+                    CalendarMode.DUTY_INPUT -> emptySet()
+                    CalendarMode.LEAVE_PLAN -> uiState.plan?.let { planDates(it.start, it.end) }.orEmpty()
+                },
+                fillSelected = mode == CalendarMode.LEAVE_PLAN,
+                dayLabels = if (mode == CalendarMode.LEAVE_PLAN) uiState.plan?.dayLabels.orEmpty() else emptyMap(),
                 onDayClick = { date ->
-                    if (inputMode) {
-                        if (isPassMode) viewModel.togglePass(date) { lastAction = it }
-                        else viewModel.toggleDuty(date, selectedType) { lastAction = it }
-                    } else {
-                        viewModel.selectDate(date)
+                    when (mode) {
+                        CalendarMode.VIEW -> viewModel.selectDate(date)
+                        CalendarMode.DUTY_INPUT ->
+                            if (isPassMode) viewModel.togglePass(date) { lastAction = it }
+                            else viewModel.toggleDuty(date, selectedType) { lastAction = it }
+                        CalendarMode.LEAVE_PLAN -> viewModel.tapPlanDate(date)
                     }
                 },
                 onSwipePrevious = viewModel::previousMonth,
@@ -146,16 +167,73 @@ fun CalendarScreen(
 
             Divider(modifier = Modifier.padding(vertical = 16.dp))
 
-            if (inputMode) {
+            if (mode == CalendarMode.DUTY_INPUT) {
                 InputGuide(
                     lastAction = lastAction,
                     isPassMode = isPassMode,
                     selectedType = selectedType,
                     autoAddOffDuty = uiState.autoAddOffDuty,
                 )
+            } else if (mode == CalendarMode.LEAVE_PLAN) {
+                LastActionBanner(lastAction)
+                val plan = uiState.plan
+                val planEnd = plan?.end
+                if (plan == null || planEnd == null) {
+                    Text(
+                        if (plan == null) "출타 시작일을 누르세요" else "${plan.start.slashLabel()} 시작 · 종료일을 누르세요 (다음 달은 넘겨서 고릅니다)",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                } else {
+                    Text(
+                        "기간 바깥을 누르면 늘어나고, 처음·끝 날을 누르면 하루씩 줄어듭니다. 안쪽 날을 누르면 가까운 끝이 그날까지 줄어듭니다",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    LeavePlanPanel(
+                        start = plan.start,
+                        end = planEnd,
+                        rows = plan.rows,
+                        parts = plan.parts,
+                        onChangeDays = viewModel::setPlanDays,
+                        onAutoFill = viewModel::setPlanParts,
+                        onSave = { parts -> viewModel.savePlan(parts) { lastAction = it } },
+                        onCancel = {
+                            viewModel.clearPlan()
+                            if (plan.editing) mode = CalendarMode.VIEW
+                        },
+                        onRestart = viewModel::clearPlan,
+                        onDeleteTrip = if (plan.editing) {
+                            { viewModel.deleteEditedTrip { lastAction = it } }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Text(
+                        "날짜는 행 순서대로 이어집니다. 기간과 겹친 기존 휴가·외박은 이 계획으로 바뀌고, 기간 밖 부분은 남습니다. 수정 중 줄여서 빠진 날의 기록은 지워집니다",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             } else {
+                LastActionBanner(lastAction)
                 SelectedDayDetail(
                     uiState.selectedDayInfo,
+                    tripLine = {
+                        uiState.selectedTrip?.let { trip ->
+                            TripLine(
+                                trip,
+                                onEdit = {
+                                    mode = CalendarMode.LEAVE_PLAN
+                                    lastAction = null
+                                    editingEventId = null
+                                    viewModel.editTrip(trip.start, trip.end)
+                                },
+                                onDelete = { viewModel.deleteTrip(trip.start, trip.end) { lastAction = it } },
+                            )
+                        }
+                    },
                     onDeleteEvent = viewModel::deleteEvent,
                     onDeletePass = viewModel::deletePass,
                     onDeleteDuty = viewModel::deleteDuty,
@@ -216,16 +294,7 @@ private fun InputGuide(
     autoAddOffDuty: Boolean,
 ) {
     Column {
-        if (lastAction != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Text("방금: $lastAction", style = MaterialTheme.typography.bodyMedium)
-            }
-        }
+        LastActionBanner(lastAction)
         Text(
             "날짜를 누르면 고른 종류가 바로 저장되고, 이미 있는 날을 다시 누르면 지워집니다",
             style = MaterialTheme.typography.bodySmall,
@@ -247,6 +316,61 @@ private fun InputGuide(
     }
 }
 
+/** 방금 한 동작의 한 줄 안내(있을 때만). */
+@Composable
+private fun LastActionBanner(lastAction: String?) {
+    if (lastAction == null) return
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Text("방금: $lastAction", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * 보기 모드에서 고른 날이 속한 출타: "이번 출타: 9/22~9/28 7일 (외박1 포상3 연가3)" + [수정] [삭제] 아이콘.
+ * 같은 상세 영역의 일정 줄([EventLine])과 같은 모양이고, 삭제는 확인 다이얼로그를 거친다.
+ */
+@Composable
+private fun TripLine(trip: TripSummary, onEdit: () -> Unit, onDelete: () -> Unit) {
+    var confirmingDelete by remember(trip) { mutableStateOf(false) }
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "이번 출타: ${trip.start.slashLabel()}~${trip.end.slashLabel()} ${trip.totalDays}일 (${trip.partsText})",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Filled.Edit, contentDescription = "출타 수정")
+        }
+        IconButton(onClick = { confirmingDelete = true }) {
+            Icon(Icons.Filled.Close, contentDescription = "출타 삭제")
+        }
+    }
+    if (confirmingDelete) {
+        DeleteTripDialog(
+            message = "${trip.start.slashLabel()}~${trip.end.slashLabel()} 출타의 휴가·외박 기록을 모두 지웁니다.",
+            onConfirm = { confirmingDelete = false; onDelete() },
+            onDismiss = { confirmingDelete = false },
+        )
+    }
+}
+
+/** 휴가 계획 기간의 날짜 집합(달력 칠하기용). 종료일을 아직 안 골랐으면 시작일 하나. */
+private fun planDates(start: LocalDate, end: LocalDate?): Set<LocalDate> {
+    if (end == null) return setOf(start)
+    val result = mutableSetOf<LocalDate>()
+    var day = start
+    while (day <= end) {
+        result += day
+        day = day.plus(1, DateTimeUnit.DAY)
+    }
+    return result
+}
+
 @Composable
 private fun MonthHeader(year: Int, month: Int, onPrevious: () -> Unit, onNext: () -> Unit) {
     Row(
@@ -266,6 +390,8 @@ private fun MonthHeader(year: Int, month: Int, onPrevious: () -> Unit, onNext: (
 @Composable
 private fun SelectedDayDetail(
     day: CalendarDayInfo?,
+    /** 고른 날이 속한 출타 줄. 휴가·외박 줄 바로 아래에 그린다. */
+    tripLine: @Composable () -> Unit,
     onDeleteEvent: (Event) -> Unit,
     onDeletePass: (PassRecord) -> Unit,
     onDeleteDuty: (DutyAssignment) -> Unit,
@@ -301,6 +427,7 @@ private fun SelectedDayDetail(
         day.leaveNames.forEach { DetailLine("$it 사용일") }
         if (day.hasCombatRest) DetailLine("전투휴무 사용일")
         if (day.hasOvernight) DetailLine("외박일")
+        tripLine()
         day.passRecords.forEach { record ->
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(

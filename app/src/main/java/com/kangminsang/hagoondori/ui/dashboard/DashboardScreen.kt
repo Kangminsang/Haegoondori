@@ -38,7 +38,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Context
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import com.kangminsang.hagoondori.core.calc.DDayCalculator
+import com.kangminsang.hagoondori.core.calc.LiveDurationFormatter
+import com.kangminsang.hagoondori.core.calc.LiveDurationUnit
 import com.kangminsang.hagoondori.core.calc.OutingPeriodCalculator
 import com.kangminsang.hagoondori.ui.common.SyncStatusBanner
 import com.kangminsang.hagoondori.util.AppClock
@@ -58,6 +67,7 @@ import kotlinx.datetime.LocalDate
 @Composable
 fun DashboardScreen(
     onNavigateToSync: () -> Unit,
+    onOpenServiceStats: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -92,7 +102,13 @@ fun DashboardScreen(
                 return@LazyColumn
             }
 
-            item { ServiceProgressCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item {
+                ServiceProgressCard(
+                    uiState,
+                    onOpenServiceStats = onOpenServiceStats,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
             item { NextOutingCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item { LeaveSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item { CombatRestSummaryCard(uiState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
@@ -115,7 +131,7 @@ private fun EmptyProfileNotice(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ServiceProgressCard(uiState: DashboardUiState, modifier: Modifier = Modifier) {
+private fun ServiceProgressCard(uiState: DashboardUiState, onOpenServiceStats: () -> Unit, modifier: Modifier = Modifier) {
     val profile = uiState.profile ?: return
     val today = uiState.today ?: return
 
@@ -134,8 +150,21 @@ private fun ServiceProgressCard(uiState: DashboardUiState, modifier: Modifier = 
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("전역까지", style = MaterialTheme.typography.titleMedium)
+                // 전역까지 남은 날 영역을 누르면 군생활 통계 페이지로 간다.
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable(onClickLabel = "군생활 통계 보기", onClick = onOpenServiceStats),
+                ) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("전역까지", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "  통계 보기 ›",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                    }
                     val dDayText = uiState.dischargeDDay?.let { dDayText(it) } ?: "-"
                     Text(
                         dDayText,
@@ -173,20 +202,7 @@ private fun ServiceProgressCard(uiState: DashboardUiState, modifier: Modifier = 
             )
             LiveProgressPercent(profile, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(IntrinsicSize.Min),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LiveTimeStat(
-                    label = "보낸 시간",
-                    modifier = Modifier.weight(1f),
-                ) { now -> DDayCalculator.elapsedMillis(profile.enlistmentDate, now, AppClock.timeZone) }
-                StatDivider()
-                LiveTimeStat(
-                    label = "남은 시간",
-                    modifier = Modifier.weight(1f),
-                ) { now -> DDayCalculator.remainingMillis(profile.dischargeDate, now, AppClock.timeZone) }
-            }
+            LiveTimeStats(profile, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }
     }
 }
@@ -211,38 +227,90 @@ private fun LiveProgressPercent(profile: UserProfile, modifier: Modifier = Modif
 }
 
 /**
- * 밀리초 값을 `224일 22:53:26`처럼 초 단위로 흐르게 보여준다. 보낸 시간은 올라가고 남은 시간은 줄어들며,
- * 둘이 동시에 움직이는 것 자체가 시간이 흐르고 있다는 느낌을 준다.
+ * 보낸 시간 / 남은 시간을 나란히 보여준다. 둘 중 아무거나 누르면 둘 다 일 → 시간 → 분 → 초 → 일 단위로 바뀐다
+ * (나란히 놓인 두 값의 단위가 다르면 읽기 어렵다). 단위는 화면을 돌리거나 다른 탭에 다녀와도 유지된다.
+ * "누르면 바뀐다"는 안내는 한 번 눌러 보기 전까지만 보여준다(앱을 다시 켜도 유지).
+ */
+@Composable
+private fun LiveTimeStats(profile: UserProfile, modifier: Modifier = Modifier) {
+    var unit by rememberSaveable { mutableStateOf(LiveDurationUnit.DAY) }
+    val context = LocalContext.current
+    val hintPrefs = remember(context) { context.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE) }
+    var showHint by remember { mutableStateOf(!hintPrefs.getBoolean(KEY_LIVE_UNIT_HINT_SEEN, false)) }
+    val onToggle = {
+        unit = unit.next()
+        if (showHint) {
+            showHint = false
+            hintPrefs.edit().putBoolean(KEY_LIVE_UNIT_HINT_SEEN, true).apply()
+        }
+    }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LiveTimeStat(
+                label = "보낸 시간",
+                unit = unit,
+                onClick = onToggle,
+                modifier = Modifier.weight(1f),
+            ) { now -> DDayCalculator.elapsedMillis(profile.enlistmentDate, now, AppClock.timeZone) }
+            StatDivider()
+            LiveTimeStat(
+                label = "남은 시간",
+                unit = unit,
+                onClick = onToggle,
+                modifier = Modifier.weight(1f),
+            ) { now -> DDayCalculator.remainingMillis(profile.dischargeDate, now, AppClock.timeZone) }
+        }
+        if (showHint) {
+            Text(
+                "보낸·남은 시간을 누르면 시간·분·초로 바뀌어요",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+private const val UI_PREFS = "dashboard_ui"
+private const val KEY_LIVE_UNIT_HINT_SEEN = "live_time_unit_hint_seen"
+
+/**
+ * 밀리초 값을 [unit]에 맞춰(`224일 22:53:26`, `5,398시간 53:26` ...) 초 단위로 흐르게 보여준다. 보낸 시간은
+ * 올라가고 남은 시간은 줄어들며, 둘이 동시에 움직이는 것 자체가 시간이 흐르고 있다는 느낌을 준다.
+ * 눌린 영역은 카드·버튼과 같은 각진 모양으로 물결이 퍼진다.
  */
 @Composable
 private fun LiveTimeStat(
     label: String,
+    unit: LiveDurationUnit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     millisAt: (Instant) -> Long,
 ) {
     val now by rememberLiveNow(intervalMillis = 200L)
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClickLabel = "시간 단위 바꾸기", onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text(label, style = MaterialTheme.typography.bodySmall)
         FixedWidthDigits(
-            text = formatDuration(millisAt(now)),
+            text = LiveDurationFormatter.format(millisAt(now), unit),
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             digitWidth = 11.sp,
         )
     }
 }
 
-/** 밀리초를 `224일 22:53:26`처럼 표시한다. */
-private fun formatDuration(millis: Long): String {
-    val totalSeconds = (millis / 1000).coerceAtLeast(0)
-    val days = totalSeconds / 86_400
-    val hours = totalSeconds % 86_400 / 3_600
-    val minutes = totalSeconds % 3_600 / 60
-    val seconds = totalSeconds % 60
-    return "%d일 %02d:%02d:%02d".format(days, hours, minutes, seconds)
-}
-
+/** 나란히 놓인 두 숫자 사이의 세로 구분선. */
 @Composable
-private fun StatDivider() {
+internal fun StatDivider() {
     Box(Modifier.width(1.5.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant))
 }
 
@@ -352,8 +420,9 @@ private fun NextOutingCard(uiState: DashboardUiState, modifier: Modifier = Modif
                         modifier = Modifier.weight(1f),
                     )
                     FixedWidthDigits(
-                        text = formatDuration(
+                        text = LiveDurationFormatter.format(
                             if (ongoing) (now - departure).inWholeMilliseconds else (departure - now).inWholeMilliseconds,
+                            LiveDurationUnit.DAY,
                         ),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         digitWidth = 11.sp,
@@ -372,8 +441,9 @@ private fun NextOutingCard(uiState: DashboardUiState, modifier: Modifier = Modif
     }
 }
 
+/** 라벨 왼쪽·값 오른쪽 한 줄. 군생활 통계 페이지의 줄도 같은 모양을 쓴다. */
 @Composable
-private fun PlanRow(label: String, value: String) {
+internal fun PlanRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
