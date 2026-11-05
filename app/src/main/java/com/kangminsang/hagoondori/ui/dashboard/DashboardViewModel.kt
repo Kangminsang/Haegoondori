@@ -8,8 +8,11 @@ import com.kangminsang.hagoondori.core.calc.LeaveCalculator
 import com.kangminsang.hagoondori.core.calc.OutingPeriodCalculator
 import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
 import com.kangminsang.hagoondori.core.calc.ServiceScheduleCalculator
+import com.kangminsang.hagoondori.core.calc.ServiceStatsCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
+import com.kangminsang.hagoondori.core.model.DutyAssignment
+import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
@@ -20,6 +23,8 @@ import com.kangminsang.hagoondori.core.model.SyncState
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.remote.holiday.HolidayAutoRefresh
 import com.kangminsang.hagoondori.data.repository.CombatRestRepository
+import com.kangminsang.hagoondori.data.repository.DutyRepository
+import com.kangminsang.hagoondori.data.repository.HolidayRepository
 import com.kangminsang.hagoondori.data.repository.LeaveRepository
 import com.kangminsang.hagoondori.data.repository.OvernightRepository
 import com.kangminsang.hagoondori.data.repository.PassRepository
@@ -48,6 +53,8 @@ class DashboardViewModel @Inject constructor(
     private val combatRestRepository: CombatRestRepository,
     private val overnightRepository: OvernightRepository,
     private val passRepository: PassRepository,
+    private val dutyRepository: DutyRepository,
+    private val holidayRepository: HolidayRepository,
     private val syncStateRepository: SyncStateRepository,
     private val pendingChangesTracker: PendingChangesTracker,
     private val holidayAutoRefresh: HolidayAutoRefresh,
@@ -74,14 +81,18 @@ class DashboardViewModel @Inject constructor(
             pendingChangesTracker.observe(),
             AppClock.todayFlow(),
             ::PassAndSyncData,
-        ),
-    ) { profile, leaveData, combatRestData, overnightData, passAndSync ->
-        buildUiState(profile, leaveData, combatRestData, overnightData, passAndSync)
+        ).combine(
+            combine(holidayRepository.observeAll(), dutyRepository.observeAll(), ::StatsSourceData),
+        ) { passAndSync, statsSource -> passAndSync to statsSource },
+    ) { profile, leaveData, combatRestData, overnightData, (passAndSync, statsSource) ->
+        buildUiState(profile, leaveData, combatRestData, overnightData, passAndSync, statsSource)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
     private data class LeaveData(val types: List<LeaveType>, val grants: List<LeaveGrant>, val usages: List<LeaveUsage>)
     private data class CombatRestData(val grants: List<CombatRestGrant>, val usages: List<CombatRestUsage>)
     private data class OvernightData(val records: List<OvernightRecord>, val forfeitures: List<OvernightForfeiture>)
+    /** 군생활 통계에만 쓰는 원본(공휴일, 근무 배정). */
+    private data class StatsSourceData(val holidays: List<Holiday>, val duties: List<DutyAssignment>)
     private data class PassAndSyncData(
         val records: List<PassRecord>,
         val syncState: SyncState,
@@ -95,6 +106,7 @@ class DashboardViewModel @Inject constructor(
         combatRestData: CombatRestData,
         overnightData: OvernightData,
         passAndSync: PassAndSyncData,
+        statsSource: StatsSourceData,
     ): DashboardUiState {
         // 자정이 지나면 todayFlow가 새 날짜를 내보내 이 함수가 다시 호출된다(D-day 등이 날짜에서 파생되므로).
         val today = passAndSync.today
@@ -143,6 +155,33 @@ class DashboardViewModel @Inject constructor(
         )
         val nextPass = passAndSync.records.map { it.date }.filter { it >= today }.minOrNull()
 
+        val serviceStats = profile?.let {
+            ServiceStatsCalculator.calculate(
+                enlistmentDate = it.enlistmentDate,
+                dischargeDate = it.dischargeDate,
+                today = today,
+                promotionDates = it.promotionDates,
+                holidays = statsSource.holidays,
+                leaveUsages = leaveData.usages,
+                overnightRecords = overnightData.records,
+                nextOvernightDate = overnightSchedule?.nextScheduledDate,
+                passRecords = passAndSync.records,
+                dutyAssignments = statsSource.duties,
+                combatRestUsages = combatRestData.usages,
+            )
+        }
+        val remainingOvernightCount = if (profile != null && overnightSchedule != null) {
+            OvernightScheduleCalculator.remainingUntilDischarge(
+                firstOvernightDate = profile.firstOvernightDate!!,
+                cycleWeeks = profile.overnightCycleWeeks,
+                schedule = overnightSchedule,
+                dischargeDate = profile.dischargeDate,
+                today = today,
+            ).size
+        } else {
+            null
+        }
+
         return DashboardUiState(
             isLoading = false,
             profile = profile,
@@ -162,6 +201,7 @@ class DashboardViewModel @Inject constructor(
                 ServiceScheduleCalculator.nextPromotion(it.promotionDates, today)?.let { (rank, date) ->
                     NextPromotion(
                         label = rank.label,
+                        date = date,
                         dDay = DDayCalculator.dDay(today, date),
                         progressPercent = ServiceScheduleCalculator.progressToNextPromotion(
                             it.enlistmentDate, it.promotionDates, date, today,
@@ -173,6 +213,8 @@ class DashboardViewModel @Inject constructor(
             combatRestSummary = combatRestSummary,
             nextOuting = nextOuting,
             nextPass = nextPass,
+            serviceStats = serviceStats,
+            remainingOvernightCount = remainingOvernightCount,
             syncState = passAndSync.syncState,
             pendingChanges = passAndSync.pendingChanges,
         )

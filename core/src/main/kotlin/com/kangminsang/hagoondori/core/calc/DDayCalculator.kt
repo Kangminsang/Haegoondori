@@ -50,6 +50,13 @@ object DDayCalculator {
     fun remainingMillis(dischargeDate: LocalDate, now: Instant, zone: TimeZone): Long =
         (dischargeDate.atStartOfDayIn(zone).toEpochMilliseconds() - now.toEpochMilliseconds()).coerceAtLeast(0L)
 
+    /**
+     * [target] 0시까지 남은 시간(밀리초). [remainingMillis]와 달리 이미 지났으면 음수를 그대로 돌려준다 -
+     * 진급일·전역일 D-day를 시간·분 단위로 보여줄 때 "지남"까지 표시하기 위해서다.
+     */
+    fun millisUntil(target: LocalDate, now: Instant, zone: TimeZone): Long =
+        target.atStartOfDayIn(zone).toEpochMilliseconds() - now.toEpochMilliseconds()
+
     private fun progressPercent(enlistmentDate: LocalDate, dischargeDate: LocalDate, at: LocalDate): Double {
         val total = enlistmentDate.daysUntil(dischargeDate)
         if (total <= 0) return 0.0
