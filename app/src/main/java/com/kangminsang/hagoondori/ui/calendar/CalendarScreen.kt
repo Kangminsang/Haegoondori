@@ -150,6 +150,7 @@ fun CalendarScreen(
                     CalendarMode.LEAVE_PLAN -> uiState.plan?.let { planDates(it.start, it.end) }.orEmpty()
                 },
                 fillSelected = mode == CalendarMode.LEAVE_PLAN,
+                dayLabels = if (mode == CalendarMode.LEAVE_PLAN) uiState.plan?.dayLabels.orEmpty() else emptyMap(),
                 onDayClick = { date ->
                     when (mode) {
                         CalendarMode.VIEW -> viewModel.selectDate(date)
@@ -184,17 +185,33 @@ fun CalendarScreen(
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 } else {
+                    Text(
+                        "기간 바깥을 누르면 늘어나고, 처음·끝 날을 누르면 하루씩 줄어듭니다. 안쪽 날을 누르면 가까운 끝이 그날까지 줄어듭니다",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                     LeavePlanPanel(
                         start = plan.start,
                         end = planEnd,
                         rows = plan.rows,
-                        initialParts = plan.initialParts,
+                        parts = plan.parts,
+                        onChangeDays = viewModel::setPlanDays,
+                        onAutoFill = viewModel::setPlanParts,
                         onSave = { parts -> viewModel.savePlan(parts) { lastAction = it } },
-                        onCancel = viewModel::clearPlan,
+                        onCancel = {
+                            viewModel.clearPlan()
+                            if (plan.editing) mode = CalendarMode.VIEW
+                        },
+                        onRestart = viewModel::clearPlan,
+                        onDeleteTrip = if (plan.editing) {
+                            { viewModel.deleteEditedTrip { lastAction = it } }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.padding(top = 8.dp),
                     )
                     Text(
-                        "날짜는 행 순서대로 이어집니다. 기간과 겹친 기존 휴가·외박은 이 계획으로 바뀌고, 기간 밖 부분은 남습니다",
+                        "날짜는 행 순서대로 이어집니다. 기간과 겹친 기존 휴가·외박은 이 계획으로 바뀌고, 기간 밖 부분은 남습니다. 수정 중 줄여서 빠진 날의 기록은 지워집니다",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 4.dp),
                     )

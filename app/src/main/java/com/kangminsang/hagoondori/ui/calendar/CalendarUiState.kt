@@ -60,11 +60,15 @@ data class PlanRow(val kind: PlanKind, val name: String, val remaining: Int?)
 
 /**
  * 휴가 계획 모드 상태. [end]가 null이면 시작일만 고른 상태다.
- * [initialParts]는 고른 기간에 이미 있는 기록의 종류별 일수(패널 미리 채우기).
+ * [parts]는 [rows]와 같은 순서의 행별 일수(처음엔 고른 기간의 기존 기록으로 채운다).
+ * [dayLabels]는 계획대로라면 각 날짜에 들어갈 종류의 한 글자(달력 칸 표시용).
+ * [editing]은 보기 모드의 [수정]으로 기존 출타를 고치는 중인지다.
  */
 data class LeavePlanState(
     val start: LocalDate,
     val end: LocalDate?,
     val rows: List<PlanRow>,
-    val initialParts: List<PlanPart>,
+    val parts: List<PlanPart>,
+    val dayLabels: Map<LocalDate, String>,
+    val editing: Boolean,
 )

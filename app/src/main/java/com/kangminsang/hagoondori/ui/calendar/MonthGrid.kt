@@ -49,6 +49,8 @@ fun MonthGrid(
     selectedDates: Set<LocalDate>,
     /** 근무 입력 모드: 선택된 칸을 테두리에 더해 음영으로도 채워, 여러 칸이 골라졌음을 분명히 한다. */
     fillSelected: Boolean = false,
+    /** 휴가 계획 중 날짜별로 칸에 보일 종류 한 글자(예: "외", "포", "연"). */
+    dayLabels: Map<LocalDate, String> = emptyMap(),
     onDayClick: (LocalDate) -> Unit,
     /** 격자를 오른쪽으로 밀면(이전 달 방향) 호출된다. */
     onSwipePrevious: () -> Unit = {},
@@ -112,6 +114,7 @@ fun MonthGrid(
                             day = day,
                             isSelected = day.date in selectedDates,
                             fillSelected = fillSelected,
+                            planLabel = dayLabels[day.date],
                             isToday = day.date == today,
                             today = today,
                             onClick = { onDayClick(day.date) },

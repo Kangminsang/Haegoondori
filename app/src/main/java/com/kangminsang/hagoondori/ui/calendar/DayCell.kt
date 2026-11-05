@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,8 @@ fun DayCell(
     day: CalendarDayInfo,
     isSelected: Boolean,
     fillSelected: Boolean = false,
+    /** 휴가 계획 중 이 날에 들어갈 종류 한 글자. null이면 표시하지 않는다. */
+    planLabel: String? = null,
     isToday: Boolean,
     today: LocalDate,
     onClick: () -> Unit,
@@ -95,6 +98,15 @@ fun DayCell(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             duties.forEach { DutyChip(it, size = if (crowded) 13.dp else 16.dp, fontSize = if (crowded) 9.sp else 11.sp) }
+        }
+        if (planLabel != null) {
+            Text(
+                planLabel,
+                color = colors.error,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+            )
         }
     }
 }

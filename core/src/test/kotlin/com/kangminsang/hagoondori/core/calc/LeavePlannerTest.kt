@@ -189,6 +189,176 @@ class LeavePlannerTest {
         assertTrue(changes.addOvernights.isEmpty())
     }
 
+    // ---- adjust ----
+
+    /** 외박1 포상3 연가3, 9/22~9/28. */
+    private val trip = listOf(PlanPart(overnight, 1), PlanPart(reward, 3), PlanPart(regular, 3))
+
+    @Test
+    fun `tapping before start extends the front part`() {
+        val result = LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 20))
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 20), d(9, 28), listOf(PlanPart(overnight, 3), PlanPart(reward, 3), PlanPart(regular, 3))),
+            result,
+        )
+    }
+
+    @Test
+    fun `tapping after end extends the back part across the month`() {
+        val result = LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(10, 2))!!
+        assertEquals(d(9, 22), result.start)
+        assertEquals(d(10, 2), result.end)
+        assertEquals(listOf(PlanPart(overnight, 1), PlanPart(reward, 3), PlanPart(regular, 7)), result.parts)
+        assertEquals(LeavePlanner.dayCount(result.start, result.end), result.parts.sumOf { it.days })
+    }
+
+    @Test
+    fun `extending skips zero rows at the edges`() {
+        val parts = listOf(PlanPart(overnight, 0), PlanPart(reward, 2), PlanPart(regular, 0))
+        assertEquals(
+            listOf(PlanPart(overnight, 0), PlanPart(reward, 4), PlanPart(regular, 0)),
+            LeavePlanner.adjust(d(9, 22), d(9, 23), parts, d(9, 20))!!.parts,
+        )
+        assertEquals(
+            listOf(PlanPart(overnight, 0), PlanPart(reward, 3), PlanPart(regular, 0)),
+            LeavePlanner.adjust(d(9, 22), d(9, 23), parts, d(9, 24))!!.parts,
+        )
+    }
+
+    @Test
+    fun `tapping the start day drops it and removes a part that reaches zero`() {
+        val result = LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 22))
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 23), d(9, 28), listOf(PlanPart(overnight, 0), PlanPart(reward, 3), PlanPart(regular, 3))),
+            result,
+        )
+        assertEquals(listOf(PlanSegment(reward, d(9, 23), d(9, 25)), PlanSegment(regular, d(9, 26), d(9, 28))), LeavePlanner.layout(result!!.start, result.parts))
+    }
+
+    @Test
+    fun `tapping the end day drops it from the back part`() {
+        val result = LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 28))
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 22), d(9, 27), listOf(PlanPart(overnight, 1), PlanPart(reward, 3), PlanPart(regular, 2))),
+            result,
+        )
+    }
+
+    @Test
+    fun `tapping inside moves the nearer edge`() {
+        // 9/24: 시작에서 2일, 끝에서 4일 → 시작을 옮긴다. 외박1을 다 빼고 포상에서 1 뺀다.
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 24), d(9, 28), listOf(PlanPart(overnight, 0), PlanPart(reward, 2), PlanPart(regular, 3))),
+            LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 24)),
+        )
+        // 9/26: 시작에서 4일, 끝에서 2일 → 끝을 옮긴다. 연가 3 중 2를 뺀다.
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 22), d(9, 26), listOf(PlanPart(overnight, 1), PlanPart(reward, 3), PlanPart(regular, 1))),
+            LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 26)),
+        )
+    }
+
+    @Test
+    fun `tapping the exact middle moves the end`() {
+        // 9/25는 양 끝에서 3일씩 → 종료일을 옮긴다. 연가 3을 다 빼 0이 된다.
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 22), d(9, 25), listOf(PlanPart(overnight, 1), PlanPart(reward, 3), PlanPart(regular, 0))),
+            LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 25)),
+        )
+    }
+
+    @Test
+    fun `shrinking across a month boundary takes days from several parts`() {
+        // 9/29~10/05: 외박1 포상1 연가5. 10/1은 시작에서 2일, 끝에서 4일 → 시작을 옮기며 외박·포상이 모두 빠진다.
+        val parts = listOf(PlanPart(overnight, 1), PlanPart(reward, 1), PlanPart(regular, 5))
+        assertEquals(
+            LeavePlanner.Adjusted(d(10, 1), d(10, 5), listOf(PlanPart(overnight, 0), PlanPart(reward, 0), PlanPart(regular, 5))),
+            LeavePlanner.adjust(d(9, 29), d(10, 5), parts, d(10, 1)),
+        )
+        // 10/5(종료일)을 누르면 하루 줄어 10/4까지.
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 29), d(10, 4), listOf(PlanPart(overnight, 1), PlanPart(reward, 1), PlanPart(regular, 4))),
+            LeavePlanner.adjust(d(9, 29), d(10, 5), parts, d(10, 5)),
+        )
+    }
+
+    @Test
+    fun `shrinking from the end takes unassigned days first`() {
+        // 5일 중 포상 3일만 배분: 뒤 2일은 비어 있다. 종료일을 누르면 빈 날만 빠진다.
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 22), d(9, 25), listOf(PlanPart(reward, 3))),
+            LeavePlanner.adjust(d(9, 22), d(9, 26), listOf(PlanPart(reward, 3)), d(9, 26)),
+        )
+        // 포상 4일(빈 날 1일)에서 가운데 9/24를 누르면 2일이 빠진다: 빈 날 1 + 포상 1.
+        assertEquals(
+            LeavePlanner.Adjusted(d(9, 22), d(9, 24), listOf(PlanPart(reward, 3))),
+            LeavePlanner.adjust(d(9, 22), d(9, 26), listOf(PlanPart(reward, 4)), d(9, 24)),
+        )
+    }
+
+    @Test
+    fun `tapping the only day of a one day range clears it`() {
+        assertNull(LeavePlanner.adjust(d(9, 22), d(9, 22), listOf(PlanPart(reward, 1)), d(9, 22)))
+    }
+
+    // ---- applyEdit ----
+
+    @Test
+    fun `shrinking an existing trip deletes the dropped days and leaves unrelated records`() {
+        val o1 = OvernightRecord("o1", d(9, 22))
+        val u1 = LeaveUsage("u1", "reward", d(9, 23), d(9, 25))
+        val u2 = LeaveUsage("u2", "regular", d(9, 26), d(9, 28))
+        val unrelatedBefore = LeaveUsage("u3", "regular", d(9, 10), d(9, 12))
+        val unrelatedAfter = OvernightRecord("o2", d(10, 5))
+        val adjusted = LeavePlanner.adjust(d(9, 22), d(9, 28), trip, d(9, 26))!!
+        val changes = LeavePlanner.applyEdit(
+            d(9, 22), d(9, 28),
+            adjusted.start, adjusted.end, adjusted.parts,
+            listOf(unrelatedBefore, u1, u2), listOf(o1, unrelatedAfter),
+        )
+        // 외박·포상은 그대로, 연가 9/26~28은 9/26 하루로 바뀐다.
+        assertEquals(listOf(u2), changes.deleteUsages)
+        assertTrue(changes.deleteOvernights.isEmpty())
+        assertEquals(listOf(LeaveUsageDraft("regular", d(9, 26), d(9, 26), null)), changes.addUsages)
+        assertTrue(changes.addOvernights.isEmpty())
+    }
+
+    @Test
+    fun `shrinking an existing trip from the front deletes the dropped overnight`() {
+        val o1 = OvernightRecord("o1", d(9, 22))
+        val u1 = LeaveUsage("u1", "reward", d(9, 23), d(9, 25))
+        val changes = LeavePlanner.applyEdit(
+            d(9, 22), d(9, 25), d(9, 23), d(9, 25),
+            listOf(PlanPart(overnight, 0), PlanPart(reward, 3)),
+            listOf(u1), listOf(o1),
+        )
+        assertEquals(listOf(o1), changes.deleteOvernights)
+        assertTrue(changes.deleteUsages.isEmpty())
+        assertTrue(changes.addUsages.isEmpty())
+        assertTrue(changes.addOvernights.isEmpty())
+    }
+
+    @Test
+    fun `plain apply over the new range alone would keep the dropped days`() {
+        val u2 = LeaveUsage("u2", "regular", d(9, 26), d(9, 28))
+        val changes = LeavePlanner.apply(d(9, 26), d(9, 26), listOf(PlanPart(regular, 1)), listOf(u2), emptyList())
+        // 범위 밖으로 삐져나온 9/27~28을 잘라 다시 넣는다 - 그래서 수정 저장에는 applyEdit가 필요하다.
+        assertEquals(listOf(LeaveUsageDraft("regular", d(9, 27), d(9, 28), null)), changes.addUsages.filter { it.startDate > d(9, 26) })
+    }
+
+    @Test
+    fun `applyEdit with a disjoint original range only touches the new range`() {
+        val far = LeaveUsage("u1", "reward", d(9, 1), d(9, 3))
+        val between = LeaveUsage("u2", "reward", d(9, 10), d(9, 12))
+        val changes = LeavePlanner.applyEdit(
+            d(9, 1), d(9, 3), d(9, 20), d(9, 21),
+            listOf(PlanPart(regular, 2)),
+            listOf(far, between), emptyList(),
+        )
+        assertTrue(changes.deleteUsages.isEmpty())
+        assertEquals(listOf(LeaveUsageDraft("regular", d(9, 20), d(9, 21), null)), changes.addUsages)
+    }
+
     // ---- tripAround ----
 
     @Test

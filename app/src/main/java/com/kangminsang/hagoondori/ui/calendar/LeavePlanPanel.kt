@@ -11,8 +11,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -28,27 +30,29 @@ import kotlinx.datetime.LocalDate
 /**
  * 휴가 계획 배분 패널. 고른 기간의 일수를 외박과 휴가 종류별로 나눈다. 날짜는 행 순서대로 이어 붙는다
  * (외박 → 휴가 종류 표시 순서). 합계가 기간 일수와 같아야 저장할 수 있고, 잔여를 넘기는 종류는 경고만 띄운다.
+ * 배분은 ViewModel이 들고 있다 - 달력 칸을 눌러 기간을 고치면 배분도 함께 바뀌기 때문이다.
+ *
+ * @param onDeleteTrip 기존 출타를 고치는 중일 때만 넘긴다. [이 출타 삭제](확인 한 번 더)를 보인다.
  */
 @Composable
 fun LeavePlanPanel(
     start: LocalDate,
     end: LocalDate,
     rows: List<PlanRow>,
-    initialParts: List<PlanPart>,
+    parts: List<PlanPart>,
+    onChangeDays: (PlanKind, Int) -> Unit,
+    onAutoFill: (List<PlanPart>) -> Unit,
     onSave: (List<PlanPart>) -> Unit,
     onCancel: () -> Unit,
+    onRestart: () -> Unit,
+    onDeleteTrip: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val totalDays = LeavePlanner.dayCount(start, end)
-    // 기간이 바뀌면 그 기간의 기존 기록으로 다시 채운다. 같은 종류가 떨어져 여러 번 나와도 행은 하나라 합친다.
-    val days = remember(start, end) {
-        mutableStateMapOf<PlanKind, Int>().apply {
-            initialParts.forEach { merge(it.kind, it.days, Int::plus) }
-        }
-    }
-    val parts = rows.map { PlanPart(it.kind, days[it.kind] ?: 0) }
+    val days = parts.associate { it.kind to it.days }
     val assigned = parts.sumOf { it.days }
     val left = totalDays - assigned
+    var confirmingDelete by remember(start, end) { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -62,9 +66,9 @@ fun LeavePlanPanel(
             val value = days[row.kind] ?: 0
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(row.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                TextButton(enabled = value > 0, onClick = { days[row.kind] = value - 1 }) { Text("−") }
+                TextButton(enabled = value > 0, onClick = { onChangeDays(row.kind, value - 1) }) { Text("−") }
                 Text("$value", textAlign = TextAlign.Center, modifier = Modifier.width(28.dp))
-                TextButton(enabled = left > 0, onClick = { days[row.kind] = value + 1 }) { Text("+") }
+                TextButton(enabled = left > 0, onClick = { onChangeDays(row.kind, value + 1) }) { Text("+") }
                 val remaining = row.remaining
                 Text(
                     when {
@@ -97,11 +101,24 @@ fun LeavePlanPanel(
 
         Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = {
-                LeavePlanner.autoFill(totalDays, rows.map { it.kind to (it.remaining ?: 0) })
-                    .forEach { days[it.kind] = it.days }
+                onAutoFill(LeavePlanner.autoFill(totalDays, rows.map { it.kind to (it.remaining ?: 0) }))
             }) { Text("자동 배분") }
+            TextButton(onClick = onRestart) { Text("새로 고르기") }
             TextButton(onClick = onCancel) { Text("취소") }
             Button(enabled = left == 0, onClick = { onSave(parts) }) { Text("저장") }
+        }
+
+        if (onDeleteTrip != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (confirmingDelete) {
+                    TextButton(onClick = { confirmingDelete = false; onDeleteTrip() }) {
+                        Text("정말 삭제", color = MaterialTheme.colorScheme.error)
+                    }
+                    TextButton(onClick = { confirmingDelete = false }) { Text("취소") }
+                } else {
+                    TextButton(onClick = { confirmingDelete = true }) { Text("이 출타 삭제") }
+                }
+            }
         }
     }
 }
