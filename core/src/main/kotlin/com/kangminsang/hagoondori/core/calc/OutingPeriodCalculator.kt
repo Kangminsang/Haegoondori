@@ -74,6 +74,18 @@ object OutingPeriodCalculator {
         return result
     }
 
+    /**
+     * 실제 기록(휴가 사용·외박)만으로 맞닿은 출타 기간들을 시작일순으로 돌려준다. 계산상의 다음 외박
+     * 예정일은 넣지 않는다 — 달력에서 이미 저장한 출타 하나를 고르고 고칠 때 쓴다.
+     */
+    internal fun recordedRanges(
+        leaveUsages: List<LeaveUsage>,
+        overnightRecords: List<OvernightRecord>,
+    ): List<ClosedRange<LocalDate>> =
+        chunks(segments(leaveUsages, emptyList(), overnightRecords, null)).map { chunk ->
+            chunk.minOf { it.start }..chunk.maxOf { it.end }
+        }
+
     private fun segments(
         leaveUsages: List<LeaveUsage>,
         leaveTypes: List<LeaveType>,

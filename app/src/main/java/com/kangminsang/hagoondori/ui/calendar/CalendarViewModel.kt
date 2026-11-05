@@ -2,7 +2,17 @@ package com.kangminsang.hagoondori.ui.calendar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kangminsang.hagoondori.core.calc.LeaveCalculator
+import com.kangminsang.hagoondori.core.calc.LeavePlanner
+import com.kangminsang.hagoondori.core.calc.OutingPeriodCalculator
+import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
 import com.kangminsang.hagoondori.core.calc.PassCalculator
+import com.kangminsang.hagoondori.core.calc.PlanKind
+import com.kangminsang.hagoondori.core.calc.PlanPart
+import com.kangminsang.hagoondori.core.model.LeaveGrant
+import com.kangminsang.hagoondori.core.model.OvernightForfeiture
+import com.kangminsang.hagoondori.core.model.UserProfile
+import com.kangminsang.hagoondori.core.payload.LeaveDeviceLabel
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
@@ -59,21 +69,34 @@ class CalendarViewModel @Inject constructor(
     private val yearMonth = MutableStateFlow(today.year to today.monthNumber)
     private val selectedDate = MutableStateFlow<LocalDate?>(today)
 
-    private val baseState = combine(
-        yearMonth,
-        selectedDate,
+    private data class PlanRange(val start: LocalDate, val end: LocalDate?)
+
+    /** 휴가 계획 모드에서 고른 기간. 시작일만 고른 동안은 [PlanRange.end]가 null이다. */
+    private val planRange = MutableStateFlow<PlanRange?>(null)
+
+    private val sources = combine(
         combine(eventRepository.observeAll(), dutyRepository.observeAll(), holidayRepository.observeAll(), ::EventDutyHoliday),
-        combine(leaveRepository.observeAllUsages(), leaveRepository.observeTypes(), combatRestRepository.observeUsages(), ::LeaveCombatRest),
-        combine(overnightRepository.observeRecords(), passRepository.observeAll(), ::OvernightPass),
-    ) { yearMonthValue, selected, eventDutyHoliday, leaveCombatRest, overnightPass ->
-        val (year, month) = yearMonthValue
-        build(year, month, selected, eventDutyHoliday, leaveCombatRest, overnightPass)
-    }
+        combine(
+            leaveRepository.observeAllUsages(),
+            leaveRepository.observeTypes(),
+            leaveRepository.observeAllGrants(),
+            combatRestRepository.observeUsages(),
+            ::LeaveCombatRest,
+        ),
+        combine(overnightRepository.observeRecords(), overnightRepository.observeForfeitures(), passRepository.observeAll(), ::OvernightPass),
+        profileRepository.observe(),
+        ::Sources,
+    )
 
     val uiState: StateFlow<CalendarUiState> = combine(
-        baseState,
-        profileRepository.observe().map { it?.autoAddOffDuty == true },
-    ) { state, autoAddOffDuty -> state.copy(autoAddOffDuty = autoAddOffDuty) }.stateIn(
+        yearMonth,
+        selectedDate,
+        planRange,
+        sources,
+    ) { yearMonthValue, selected, range, src ->
+        val (year, month) = yearMonthValue
+        build(year, month, selected, range, src)
+    }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         CalendarUiState(year = today.year, month = today.monthNumber),
@@ -83,18 +106,29 @@ class CalendarViewModel @Inject constructor(
     private data class LeaveCombatRest(
         val leaveUsages: List<LeaveUsage>,
         val leaveTypes: List<LeaveType>,
+        val leaveGrants: List<LeaveGrant>,
         val combatRestUsages: List<CombatRestUsage>,
     )
-    private data class OvernightPass(val overnightRecords: List<OvernightRecord>, val passRecords: List<PassRecord>)
+    private data class OvernightPass(
+        val overnightRecords: List<OvernightRecord>,
+        val forfeitures: List<OvernightForfeiture>,
+        val passRecords: List<PassRecord>,
+    )
+    private data class Sources(
+        val edh: EventDutyHoliday,
+        val lcr: LeaveCombatRest,
+        val op: OvernightPass,
+        val profile: UserProfile?,
+    )
 
     private fun build(
         year: Int,
         month: Int,
         selected: LocalDate?,
-        edh: EventDutyHoliday,
-        lcr: LeaveCombatRest,
-        op: OvernightPass,
+        range: PlanRange?,
+        src: Sources,
     ): CalendarUiState {
+        val (edh, lcr, op, profile) = src
         val days = CalendarDayBuilder.build(
             year,
             month,
@@ -109,7 +143,43 @@ class CalendarViewModel @Inject constructor(
                 passRecords = op.passRecords,
             ),
         )
-        return CalendarUiState(year = year, month = month, days = days, selectedDate = selected)
+        val trip = selected?.let { LeavePlanner.tripAround(it, lcr.leaveUsages, op.overnightRecords) }
+        return CalendarUiState(
+            year = year,
+            month = month,
+            days = days,
+            selectedDate = selected,
+            autoAddOffDuty = profile?.autoAddOffDuty == true,
+            selectedTrip = trip?.let { TripSummary(it.start, it.end, it.totalDays, partsText(it.parts, lcr.leaveTypes)) },
+            plan = range?.let { buildPlanState(it, src) },
+        )
+    }
+
+    /**
+     * 계획 패널 상태. 잔여는 출타 관리 화면([com.kangminsang.hagoondori.ui.leave.LeaveManagementViewModel])과 같은
+     * 방식으로 계산하되, 고른 기간과 겹치는 기록(이 계획이 바꿀 기록)은 빼고 계산한다.
+     */
+    private fun buildPlanState(range: PlanRange, src: Sources): LeavePlanState {
+        val end = range.end ?: return LeavePlanState(range.start, null, emptyList(), emptyList())
+        val usages = src.lcr.leaveUsages.filterNot { it.startDate <= end && it.endDate >= range.start }
+        val overnights = src.op.overnightRecords.filterNot { it.date <= end && it.endDate >= range.start }
+        val nextOvernightDate = src.profile?.firstOvernightDate?.let { first ->
+            OvernightScheduleCalculator.buildSchedule(first, src.profile.overnightCycleWeeks, src.op.overnightRecords, src.op.forfeitures)
+                .nextScheduledDate
+        }
+        val rows = buildList {
+            add(PlanRow(PlanKind.Overnight, OutingPeriodCalculator.OVERNIGHT_LABEL, remaining = null))
+            src.lcr.leaveTypes.forEach { type ->
+                val summary = LeaveCalculator.summarize(
+                    type, src.lcr.leaveGrants, usages, today,
+                    overnightRecords = overnights,
+                    nextOvernightDate = nextOvernightDate,
+                )
+                add(PlanRow(PlanKind.Leave(type.id), type.name, remaining = summary.remainingAfterPlanned))
+            }
+        }
+        val initial = LeavePlanner.existingParts(range.start, end, src.lcr.leaveUsages, src.op.overnightRecords)
+        return LeavePlanState(range.start, end, rows, initial)
     }
 
     fun previousMonth() {
@@ -225,6 +295,87 @@ class CalendarViewModel @Inject constructor(
             }
         }
     }
+
+    // ---- 휴가 계획 ----
+    // 달력에서 시작일·종료일을 차례로 눌러 전체 기간을 고르고, 패널에서 외박·휴가 종류별 일수를 나눈다.
+    // 한 출타는 맞닿은 휴가·외박 기록 여러 개로 저장된다([LeavePlanner]).
+
+    /** 휴가 계획 모드에서 날짜를 눌렀을 때: 첫 탭은 시작일, 둘째 탭은 종료일(앞이면 서로 바꿈), 그다음 탭은 새 시작일. */
+    fun tapPlanDate(date: LocalDate) {
+        val current = planRange.value
+        planRange.value = when {
+            current == null || current.end != null -> PlanRange(date, null)
+            date < current.start -> PlanRange(date, current.start)
+            else -> PlanRange(current.start, date)
+        }
+    }
+
+    /** 이미 저장된 출타를 고치려고 그 기간을 바로 고른다. 그 기간의 달로 넘어간다. */
+    fun editTrip(start: LocalDate, end: LocalDate) {
+        planRange.value = PlanRange(start, end)
+        yearMonth.value = start.year to start.monthNumber
+    }
+
+    fun clearPlan() {
+        planRange.value = null
+    }
+
+    /**
+     * 고른 기간을 [parts]로 저장한다. 겹치는 기존 기록은 바꾸고, 기간 밖으로 삐져나온 부분은 잘라서 남긴다.
+     *
+     * @param onResult 안내 문구 (예: "09-22~09-28 휴가 계획 저장 (외박1 포상3 연가3)")
+     */
+    fun savePlan(parts: List<PlanPart>, onResult: (String) -> Unit) {
+        val range = planRange.value ?: return
+        val end = range.end ?: return
+        viewModelScope.launch {
+            toggleMutex.withLock {
+                applyChanges(range.start, end, parts)
+                val types = leaveRepository.observeTypes().first()
+                planRange.value = null
+                onResult("${rangeLabel(range.start, end)} 휴가 계획 저장 (${partsText(parts, types)})")
+            }
+        }
+    }
+
+    /** [start]~[end] 출타의 휴가·외박 기록을 모두 지운다. */
+    fun deleteTrip(start: LocalDate, end: LocalDate, onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            toggleMutex.withLock {
+                val usages = leaveRepository.observeAllUsages().first()
+                val overnights = overnightRepository.observeRecords().first()
+                val parts = LeavePlanner.existingParts(start, end, usages, overnights)
+                applyChanges(start, end, emptyList())
+                val types = leaveRepository.observeTypes().first()
+                onResult("${rangeLabel(start, end)} 출타 삭제 (${partsText(parts, types)})")
+            }
+        }
+    }
+
+    private suspend fun applyChanges(start: LocalDate, end: LocalDate, parts: List<PlanPart>) {
+        val changes = LeavePlanner.apply(
+            start, end, parts,
+            leaveRepository.observeAllUsages().first(),
+            overnightRepository.observeRecords().first(),
+        )
+        changes.deleteUsages.forEach { leaveRepository.deleteUsage(it) }
+        changes.deleteOvernights.forEach { overnightRepository.deleteRecord(it) }
+        changes.addUsages.forEach { leaveRepository.addUsage(it.leaveTypeId, it.startDate, it.endDate, it.label) }
+        changes.addOvernights.forEach { overnightRepository.addRecord(it.date, it.memo, it.endDate) }
+    }
+}
+
+/** 안내 문구용 기간 표기: MM-dd~MM-dd (하루면 MM-dd). */
+private fun rangeLabel(start: LocalDate, end: LocalDate): String =
+    if (start == end) start.shortLabel() else "${start.shortLabel()}~${end.shortLabel()}"
+
+/** 종류별 일수 요약: "외박1 포상3 연가3". 일수 0인 종류는 뺀다. 휴가 이름은 장치 라벨처럼 두 글자로 줄인다. */
+internal fun partsText(parts: List<PlanPart>, types: List<LeaveType>): String =
+    parts.filter { it.days > 0 }.joinToString(" ") { "${planKindShortName(it.kind, types)}${it.days}" }
+
+internal fun planKindShortName(kind: PlanKind, types: List<LeaveType>): String = when (kind) {
+    PlanKind.Overnight -> OutingPeriodCalculator.OVERNIGHT_LABEL
+    is PlanKind.Leave -> types.firstOrNull { it.id == kind.typeId }?.name?.let(LeaveDeviceLabel::forTypeName) ?: "휴가"
 }
 
 /** 안내 문구용 날짜 표기: MM-dd (월·일 모두 두 자리). */
