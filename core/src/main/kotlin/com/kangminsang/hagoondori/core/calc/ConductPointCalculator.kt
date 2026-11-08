@@ -22,8 +22,11 @@ data class ConductPointInput(val centiPoints: Int?, val reason: String, val erro
 /** 초과근무 시간 입력 검증 결과. [error]가 null이면 통과, [tenthHours]는 0.1시간 단위 정수다. */
 data class OvertimeHoursInput(val tenthHours: Int?, val error: String?)
 
+/** 포상휴가 부여 일수 입력 검증 결과. [error]가 null이면 통과. */
+data class RewardLeaveDaysInput(val days: Int?, val error: String?)
+
 /**
- * 점수 전환 현황. 양호와 과실은 서로 상쇄하고 유효기간 없이 이월되며, 포상휴가·외박제한으로 전환한 만큼은 사라진다.
+ * 점수 전환 현황. 전환은 군기지도위원회가 정한 뒤 그 결과를 기록할 때 반영된다. 양호와 과실은 서로 상쇄하고 유효기간 없이 이월되며, 포상휴가·외박제한으로 전환한 만큼은 사라진다.
  * 그래서 남은 점수는 하나의 [balance](0.01점 단위)로 본다: 양호 합 − 과실 합 − 포상휴가 전환분 + 외박제한 전환분.
  * 양수면 남은 양호, 음수면 남은 과실이다.
  */
@@ -38,11 +41,11 @@ data class ConductConversion(
             rewardLeaveDaysApplied * ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY +
             overnightRestrictionsApplied * ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION
 
-    /** 남은 양호로 아직 기록하지 않은 포상휴가 일수. */
+    /** 남은 양호로 위원회 심의를 받을 수 있는 포상휴가 일수(결과를 기록하면 줄어든다). */
     val rewardLeaveDaysPending: Int
         get() = if (balance > 0) balance / ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY else 0
 
-    /** 남은 과실로 아직 기록하지 않은 외박제한 횟수. */
+    /** 남은 과실로 위원회 심의 대상이 되는 외박제한 횟수(결과를 기록하면 줄어든다). */
     val overnightRestrictionsPending: Int
         get() = if (balance < 0) -balance / ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION else 0
 
@@ -80,6 +83,32 @@ object ConductPointCalculator {
     const val MAX_OVERTIME_TENTH_HOURS = 240
 
     private val HOURS_PATTERN = Regex("""\d{1,2}(\.\d?)?|\.\d""")
+
+    /** 이전 사유 추천에 보여줄 기본 최대 개수. */
+    const val DEFAULT_RECENT_REASON_LIMIT = 8
+
+    /**
+     * [kind]로 이전에 쓴 사유를 최근 사용 순으로 최대 [limit]개 돌려준다. 공백을 정리해 중복을 없애고,
+     * 초과근무 기록의 사유는 뺀다. 날짜가 같으면 [records]에서 뒤에 있는(나중에 추가된) 것이 먼저다.
+     */
+    fun recentReasons(records: List<ConductPoint>, kind: ConductPointKind, limit: Int = DEFAULT_RECENT_REASON_LIMIT): List<String> =
+        records.withIndex()
+            .filter { it.value.kind == kind && it.value.overtime == null }
+            .sortedWith(compareByDescending<IndexedValue<ConductPoint>> { it.value.date }.thenByDescending { it.index })
+            .map { it.value.reason.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(limit)
+
+    /** 위원회가 정한 포상휴가 일수 입력을 검증한다. 1~[pending]일의 정수. */
+    fun validateRewardLeaveDays(text: String, pending: Int): RewardLeaveDaysInput {
+        val days = text.trim().takeIf { it.isNotEmpty() && it.all(Char::isDigit) && it.length <= 4 }?.toInt()
+        return if (days == null || days !in 1..pending) {
+            RewardLeaveDaysInput(null, "부여 일수는 1~${pending}일로 입력해 주세요.")
+        } else {
+            RewardLeaveDaysInput(days, null)
+        }
+    }
 
     /** 소수점 아래 최대 자릿수(0.01점 단위). */
     const val DECIMALS = 2

@@ -270,11 +270,11 @@ class LeaveManagementViewModel @Inject constructor(
         }
     }
 
-    /** 양호 점수로 받을 수 있는 포상휴가 [days]일을 한 번에 부여 기록한다. 상한 초과 처리는 기존 부여 경로가 맡는다. */
-    fun grantRewardLeaveFromPoints(days: Int) {
+    /** 군기지도위원회가 정한 포상휴가 [days]일을 [meetingDate] 회의일로 부여 기록한다. 상한 초과 처리는 기존 부여 경로가 맡는다. */
+    fun grantRewardLeaveFromPoints(days: Int, meetingDate: LocalDate) {
         viewModelScope.launch {
             val type = ConductPointCalculator.findRewardLeaveType(uiState.value.leaveTypes) ?: return@launch
-            leaveRepository.addGrant(type.id, days, AppClock.today(), ConductPointCalculator.REWARD_CONVERSION_REASON)
+            leaveRepository.addGrant(type.id, days, meetingDate, ConductPointCalculator.REWARD_CONVERSION_REASON)
         }
     }
 

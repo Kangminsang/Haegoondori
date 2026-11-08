@@ -233,4 +233,41 @@ class ConductPointCalculatorTest {
         assertEquals(3000 - 1000 + 2000, c.balance)
         assertEquals(4, c.rewardLeaveDaysPending)
     }
+
+    @Test
+    fun `recentReasons returns distinct trimmed reasons, latest first, excluding overtime and other kind`() {
+        val d = ConductPointKind.DEMERIT
+        val m = ConductPointKind.MERIT
+        val list = listOf(
+            ConductPoint("a", LocalDate(2026, 9, 1), m, 100, "표창"),
+            ConductPoint("b", LocalDate(2026, 9, 5), m, 100, "선행"),
+            ConductPoint("c", LocalDate(2026, 9, 5), m, 100, " 표창 "),
+            ConductPoint("d", LocalDate(2026, 9, 9), d, 100, "지각"),
+            ConductPoint("e", LocalDate(2026, 9, 10), m, 50, "평일 초과근무 1시간", overtime = Overtime(10, false)),
+            ConductPoint("f", LocalDate(2026, 8, 1), m, 100, "봉사"),
+        )
+        assertEquals(listOf("표창", "선행", "봉사"), ConductPointCalculator.recentReasons(list, m))
+        assertEquals(listOf("지각"), ConductPointCalculator.recentReasons(list, d))
+    }
+
+    @Test
+    fun `recentReasons honors the limit and handles empty`() {
+        val list = (1..12).map { ConductPoint("r$it", LocalDate(2026, 9, it), ConductPointKind.DEMERIT, 100, "사유$it") }
+        val r = ConductPointCalculator.recentReasons(list, ConductPointKind.DEMERIT)
+        assertEquals(8, r.size)
+        assertEquals("사유12", r.first())
+        assertEquals(2, ConductPointCalculator.recentReasons(list, ConductPointKind.DEMERIT, limit = 2).size)
+        assertTrue(ConductPointCalculator.recentReasons(emptyList(), ConductPointKind.MERIT).isEmpty())
+    }
+
+    @Test
+    fun `validateRewardLeaveDays accepts 1 to pending only`() {
+        assertEquals(3, ConductPointCalculator.validateRewardLeaveDays(" 3 ", 3).days)
+        assertEquals(1, ConductPointCalculator.validateRewardLeaveDays("1", 3).days)
+        for (bad in listOf("", "0", "4", "-1", "1.5", "abc")) {
+            val r = ConductPointCalculator.validateRewardLeaveDays(bad, 3)
+            assertNull(r.days, bad)
+            assertNotNull(r.error, bad)
+        }
+    }
 }
