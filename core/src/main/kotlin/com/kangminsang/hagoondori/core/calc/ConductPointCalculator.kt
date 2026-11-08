@@ -1,12 +1,10 @@
 package com.kangminsang.hagoondori.core.calc
 
 import com.kangminsang.hagoondori.core.model.ConductPoint
+import com.kangminsang.hagoondori.core.model.ConductConversionRecord
+import com.kangminsang.hagoondori.core.model.ConductConversionType
 import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
-import com.kangminsang.hagoondori.core.model.LeaveGrant
-import com.kangminsang.hagoondori.core.model.LeaveType
-import com.kangminsang.hagoondori.core.model.OverflowBehavior
-import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.PassType
 import kotlinx.datetime.LocalDate
 import kotlin.math.abs
@@ -22,11 +20,11 @@ data class ConductPointInput(val centiPoints: Int?, val reason: String, val erro
 /** 초과근무 시간 입력 검증 결과. [error]가 null이면 통과, [tenthHours]는 0.1시간 단위 정수다. */
 data class OvertimeHoursInput(val tenthHours: Int?, val error: String?)
 
-/** 포상휴가 부여 일수 입력 검증 결과. [error]가 null이면 통과. */
-data class RewardLeaveDaysInput(val days: Int?, val error: String?)
+/** 위원회 결과 일수·횟수 입력 검증 결과. [error]가 null이면 통과. */
+data class ConversionCountInput(val count: Int?, val error: String?)
 
 /**
- * 점수 전환 현황. 전환은 군기지도위원회가 정한 뒤 그 결과를 기록할 때 반영된다. 양호와 과실은 서로 상쇄하고 유효기간 없이 이월되며, 포상휴가·외박제한으로 전환한 만큼은 사라진다.
+ * 점수 전환 현황. 전환은 군기지도위원회가 정한 뒤 그 결과를 [ConductConversionRecord]로 기록할 때 반영된다(휴가 부여·외박 차수 소멸은 따로 직접 기록한다). 양호와 과실은 서로 상쇄하고 유효기간 없이 이월되며, 포상휴가·외박제한으로 전환한 만큼은 사라진다.
  * 그래서 남은 점수는 하나의 [balance](0.01점 단위)로 본다: 양호 합 − 과실 합 − 포상휴가 전환분 + 외박제한 전환분.
  * 양수면 남은 양호, 음수면 남은 과실이다.
  */
@@ -73,12 +71,6 @@ object ConductPointCalculator {
     /** 과실 20점마다 외박제한 1회 (0.01점 단위). */
     const val CENTI_POINTS_PER_OVERNIGHT_RESTRICTION = 2000
 
-    /** 양호 점수로 포상휴가를 부여할 때 [LeaveGrant.reason]에 적는 문구. 적용분을 세는 기준이다. */
-    const val REWARD_CONVERSION_REASON = "양호 점수 전환"
-
-    /** 과실 점수로 외박 차수를 제한할 때 [OvernightForfeiture.reason]에 적는 문구. 적용분을 세는 기준이다. */
-    const val OVERNIGHT_RESTRICTION_REASON = "과실 점수 외박제한"
-
     const val MIN_OVERTIME_TENTH_HOURS = 1
     const val MAX_OVERTIME_TENTH_HOURS = 240
 
@@ -100,13 +92,13 @@ object ConductPointCalculator {
             .distinct()
             .take(limit)
 
-    /** 위원회가 정한 포상휴가 일수 입력을 검증한다. 1~[pending]일의 정수. */
-    fun validateRewardLeaveDays(text: String, pending: Int): RewardLeaveDaysInput {
-        val days = text.trim().takeIf { it.isNotEmpty() && it.all(Char::isDigit) && it.length <= 4 }?.toInt()
-        return if (days == null || days !in 1..pending) {
-            RewardLeaveDaysInput(null, "부여 일수는 1~${pending}일로 입력해 주세요.")
+    /** 위원회가 정한 일수·횟수 입력을 검증한다. 1~[pending]의 정수이고, [unit]은 "일"·"회" 같은 오류 문구용 단위다. */
+    fun validateConversionCount(text: String, pending: Int, unit: String): ConversionCountInput {
+        val count = text.trim().takeIf { it.isNotEmpty() && it.all(Char::isDigit) && it.length <= 4 }?.toInt()
+        return if (count == null || count !in 1..pending) {
+            ConversionCountInput(null, "1~${pending}${unit}로 입력해 주세요.")
         } else {
-            RewardLeaveDaysInput(days, null)
+            ConversionCountInput(count, null)
         }
     }
 
@@ -197,21 +189,14 @@ object ConductPointCalculator {
     fun overtimeReason(tenthHours: Int, onHoliday: Boolean): String =
         (if (onHoliday) "휴일" else "평일") + " 초과근무 ${formatHours(tenthHours)}시간"
 
-    /** 포상휴가 종류를 찾는다: id "leave-reward" → 이름 "포상휴가" → 초과분을 전투휴무로 전환하는 종류 순. 없으면 null. */
-    fun findRewardLeaveType(types: List<LeaveType>): LeaveType? =
-        types.firstOrNull { it.id == "leave-reward" }
-            ?: types.firstOrNull { it.name == "포상휴가" }
-            ?: types.firstOrNull { it.overflowBehavior == OverflowBehavior.CONVERT_TO_COMBAT_REST }
-
-    /** 점수 합계와 지금까지의 전환 기록으로 전환 현황을 계산한다. 전환분은 부여·제한 기록의 사유로 센다. */
+    /** 점수 합계와 지금까지의 위원회 결과 기록으로 전환 현황을 계산한다. */
     fun conversion(
         summary: ConductPointSummary,
-        grants: List<LeaveGrant> = emptyList(),
-        forfeitures: List<OvernightForfeiture> = emptyList(),
+        conversions: List<ConductConversionRecord> = emptyList(),
     ): ConductConversion = ConductConversion(
         merit = summary.merit,
         demerit = summary.demerit,
-        rewardLeaveDaysApplied = grants.filter { it.reason == REWARD_CONVERSION_REASON }.sumOf { it.days },
-        overnightRestrictionsApplied = forfeitures.count { it.reason == OVERNIGHT_RESTRICTION_REASON },
+        rewardLeaveDaysApplied = conversions.filter { it.type == ConductConversionType.REWARD_LEAVE }.sumOf { it.count },
+        overnightRestrictionsApplied = conversions.filter { it.type == ConductConversionType.OVERNIGHT_RESTRICTION }.sumOf { it.count },
     )
 }

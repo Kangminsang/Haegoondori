@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.kangminsang.hagoondori.core.calc.ConductPointCalculator
+import com.kangminsang.hagoondori.core.model.ConductConversionRecord
+import com.kangminsang.hagoondori.core.model.ConductConversionType
 import com.kangminsang.hagoondori.core.model.ConductPoint
 import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
@@ -50,8 +52,8 @@ private const val OVERTIME_CHIP = "초과근무"
 /**
  * 점수 탭: 양호·과실 점수 합계와 기록, 초과근무 양호 기록, 점수 전환 현황.
  * 양호와 과실은 서로 상쇄하고 기한 없이 이월된다. 남은 양호 10점마다 포상휴가 1일, 남은 과실 20점마다 외박제한 1회가
- * 군기지도위원회 심의 대상이 된다. 전환은 자동이 아니며, 위원회가 정한 결과를 회의일과 함께 기록하면 휴가 부여 / 외박 차수
- * 소멸이 남고 그만큼의 점수가 차감된다.
+ * 군기지도위원회 심의 대상이 된다. 전환은 자동이 아니며, 위원회가 정한 결과를 회의일과 함께 "위원회 결과 기록"으로 남기면
+ * 그만큼의 점수가 차감된다. 휴가 부여와 외박 차수 소멸은 만들지 않으니 휴가·외박 탭에서 직접 기록한다.
  * 장치로 보내지 않는 개인 기록이다.
  */
 @Composable
@@ -60,16 +62,16 @@ fun ConductPointTab(
     onAdd: (date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?, overtime: Overtime?) -> Unit,
     onUpdate: (record: ConductPoint, date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?, overtime: Overtime?) -> Unit,
     onDelete: (ConductPoint) -> Unit,
-    onGrantRewardLeave: (days: Int, meetingDate: LocalDate) -> Unit,
-    onAddOvernightRestriction: (slotIndex: Int, reason: String?, meetingDate: LocalDate?) -> Unit,
+    onAddConversion: (type: ConductConversionType, meetingDate: LocalDate, count: Int, memo: String?) -> Unit,
+    onDeleteConversion: (ConductConversionRecord) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val summary = ConductPointCalculator.summarize(uiState.conductPoints)
-    val conversion = ConductPointCalculator.conversion(summary, uiState.leaveGrants, uiState.overnightForfeitures)
-    val rewardLeaveType = ConductPointCalculator.findRewardLeaveType(uiState.leaveTypes)
+    val conversion = ConductPointCalculator.conversion(summary, uiState.conductConversions)
     var showForm by remember { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<String?>(null) }
     var toDelete by remember { mutableStateOf<ConductPoint?>(null) }
+    var conversionToDelete by remember { mutableStateOf<ConductConversionRecord?>(null) }
     var showRewardForm by remember { mutableStateOf(false) }
     var showRestrictionForm by remember { mutableStateOf(false) }
 
@@ -131,21 +133,18 @@ fun ConductPointTab(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 4.dp),
                     )
-                    if (rewardLeaveType == null) {
-                        Text("포상휴가 종류가 없어요. 휴가 탭에서 추가해 주세요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
-                    } else {
-                        TextButton(onClick = { showRewardForm = !showRewardForm }) {
-                            Text(if (showRewardForm) "닫기" else "+ 위원회 결과 기록")
-                        }
-                        if (showRewardForm) {
-                            RewardLeaveCommitteeForm(
-                                pending = pending,
-                                onSubmit = { days, meetingDate ->
-                                    onGrantRewardLeave(days, meetingDate)
-                                    showRewardForm = false
-                                },
-                            )
-                        }
+                    TextButton(onClick = { showRewardForm = !showRewardForm }) {
+                        Text(if (showRewardForm) "닫기" else "+ 위원회 결과 기록")
+                    }
+                    if (showRewardForm) {
+                        CommitteeResultForm(
+                            type = ConductConversionType.REWARD_LEAVE,
+                            pending = pending,
+                            onSubmit = { count, meetingDate, memo ->
+                                onAddConversion(ConductConversionType.REWARD_LEAVE, meetingDate, count, memo)
+                                showRewardForm = false
+                            },
+                        )
                     }
                 }
             }
@@ -159,21 +158,18 @@ fun ConductPointTab(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 4.dp),
                     )
-                    if (uiState.upcomingSlotOptions.isEmpty()) {
-                        Text("설정에서 첫 외박일을 입력하면 외박 차수에 기록할 수 있어요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
-                    } else {
-                        TextButton(onClick = { showRestrictionForm = !showRestrictionForm }) {
-                            Text(if (showRestrictionForm) "닫기" else "+ 위원회 결과 기록")
-                        }
-                        if (showRestrictionForm) {
-                            RestrictionCommitteeForm(
-                                options = uiState.upcomingSlotOptions,
-                                onSubmit = { slotIndex, meetingDate ->
-                                    onAddOvernightRestriction(slotIndex, ConductPointCalculator.OVERNIGHT_RESTRICTION_REASON, meetingDate)
-                                    showRestrictionForm = false
-                                },
-                            )
-                        }
+                    TextButton(onClick = { showRestrictionForm = !showRestrictionForm }) {
+                        Text(if (showRestrictionForm) "닫기" else "+ 위원회 결과 기록")
+                    }
+                    if (showRestrictionForm) {
+                        CommitteeResultForm(
+                            type = ConductConversionType.OVERNIGHT_RESTRICTION,
+                            pending = conversion.overnightRestrictionsPending,
+                            onSubmit = { count, meetingDate, memo ->
+                                onAddConversion(ConductConversionType.OVERNIGHT_RESTRICTION, meetingDate, count, memo)
+                                showRestrictionForm = false
+                            },
+                        )
                     }
                 }
             }
@@ -226,6 +222,32 @@ fun ConductPointTab(
             }
         }
 
+        if (uiState.conductConversions.isNotEmpty()) {
+            Text("위원회 결과 기록", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+            uiState.conductConversions.sortedByDescending { it.meetingDate }.forEach { record ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        record.summaryText() + (record.memo?.let { " ($it)" } ?: ""),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { conversionToDelete = record }) {
+                        Icon(Icons.Filled.Close, contentDescription = "위원회 결과 기록 삭제")
+                    }
+                }
+            }
+        }
+
+        conversionToDelete?.let { record ->
+            AlertDialog(
+                onDismissRequest = { conversionToDelete = null },
+                title = { Text("위원회 결과 기록을 삭제할까요?") },
+                text = { Text("${record.summaryText()} 기록을 지웁니다. 차감됐던 점수가 다시 남은 점수에 반영돼요. 휴가·외박 탭의 기록은 그대로예요.") },
+                confirmButton = { Button(onClick = { onDeleteConversion(record); conversionToDelete = null }) { Text("삭제") } },
+                dismissButton = { Button(onClick = { conversionToDelete = null }) { Text("취소") } },
+            )
+        }
+
         toDelete?.let { record ->
             AlertDialog(
                 onDismissRequest = { toDelete = null },
@@ -240,67 +262,66 @@ fun ConductPointTab(
 
 private fun ConductPoint.kindLabel() = overtime?.let { "초과근무(${it.dayLabel()} ${ConductPointCalculator.formatHours(it.tenthHours)}시간)" } ?: kind.label()
 
-/** 위원회가 정한 포상휴가를 기록한다: 회의일 + 부여 일수(1~[pending]). */
+private fun ConductConversionType.unit() = if (this == ConductConversionType.REWARD_LEAVE) "일" else "회"
+
+private fun ConductConversionType.centiPointsPerUnit() =
+    if (this == ConductConversionType.REWARD_LEAVE) ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY
+    else ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION
+
+/** "2026-11-05 · 포상휴가 2일 · 양호 −20점" 형태의 한 줄 요약(메모 제외). */
+private fun ConductConversionRecord.summaryText(): String {
+    val name = if (type == ConductConversionType.REWARD_LEAVE) "포상휴가" else "외박제한"
+    val kind = if (type == ConductConversionType.REWARD_LEAVE) "양호" else "과실"
+    return "$meetingDate · $name $count${type.unit()} · $kind −${ConductPointCalculator.format(count * type.centiPointsPerUnit())}점"
+}
+
+/** 위원회가 정한 결과를 기록한다: 회의일 + 일수/횟수(1~[pending]) + 메모(선택). 휴가·외박 기록은 만들지 않는다. */
 @Composable
-private fun RewardLeaveCommitteeForm(pending: Int, onSubmit: (days: Int, meetingDate: LocalDate) -> Unit) {
+private fun CommitteeResultForm(type: ConductConversionType, pending: Int, onSubmit: (count: Int, meetingDate: LocalDate, memo: String?) -> Unit) {
+    val unit = type.unit()
+    val isReward = type == ConductConversionType.REWARD_LEAVE
     var meetingDate by remember { mutableStateOf<LocalDate?>(AppClock.today()) }
-    var daysText by remember(pending) { mutableStateOf(pending.toString()) }
+    var countText by remember(pending) { mutableStateOf(pending.toString()) }
+    var memo by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    val parsed = ConductPointCalculator.validateRewardLeaveDays(daysText, pending).days
+    val parsed = ConductPointCalculator.validateConversionCount(countText, pending, unit).count
     Column {
         DateTextField("회의일", meetingDate, { meetingDate = it }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(
-            value = daysText,
-            onValueChange = { daysText = it.filter(Char::isDigit).take(4) },
-            label = { Text("부여 일수 (1~${pending}일)") },
+            value = countText,
+            onValueChange = { countText = it.filter(Char::isDigit).take(4) },
+            label = { Text((if (isReward) "일수" else "횟수") + " (1~${pending}$unit)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
+        OutlinedTextField(
+            value = memo,
+            onValueChange = { memo = it },
+            label = { Text("메모(선택)") },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
         Text(
-            "기록하면 양호 ${ConductPointCalculator.format((parsed ?: pending) * ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY)}점이 차감돼요.",
+            "기록하면 ${if (isReward) "양호" else "과실"} ${ConductPointCalculator.format((parsed ?: pending) * type.centiPointsPerUnit())}점이 차감돼요.",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 4.dp),
         )
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
-        Button(
-            onClick = {
-                val d = meetingDate
-                val input = ConductPointCalculator.validateRewardLeaveDays(daysText, pending)
-                when {
-                    d == null -> error = "회의일을 입력해 주세요."
-                    input.error != null -> error = input.error
-                    else -> { error = null; onSubmit(input.days!!, d) }
-                }
-            },
-            modifier = Modifier.padding(top = 8.dp),
-        ) { Text("저장") }
-    }
-}
-
-/** 위원회가 정한 외박제한을 기록한다: 회의일 + 제한할 차수(예정일에서 고른다, 차수 번호를 직접 입력하지 않는다). */
-@Composable
-private fun RestrictionCommitteeForm(options: List<UpcomingSlotOption>, onSubmit: (slotIndex: Int, meetingDate: LocalDate) -> Unit) {
-    var meetingDate by remember { mutableStateOf<LocalDate?>(AppClock.today()) }
-    var selected by remember(options) { mutableStateOf(options.first()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    Column {
-        DateTextField("회의일", meetingDate, { meetingDate = it }, modifier = Modifier.fillMaxWidth())
-        Text("어느 차수를 제한할까요? (예정일에서 고릅니다)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        options.forEach { option ->
-            TextButton(onClick = { selected = option }) {
-                Text((if (selected == option) "● " else "○ ") + "${option.slotIndex + 1}차 (${option.scheduledDate})")
-            }
-        }
         Text(
-            "기록하면 과실 ${ConductPointCalculator.format(ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION)}점이 차감돼요.",
+            if (isReward) "휴가 부여는 휴가 탭에서 직접 기록해 주세요." else "외박 차수 소멸은 외박 탭에서 직접 기록해 주세요.",
             style = MaterialTheme.typography.bodySmall,
         )
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
         Button(
             onClick = {
                 val d = meetingDate
-                if (d == null) error = "회의일을 입력해 주세요." else { error = null; onSubmit(selected.slotIndex, d) }
+                val input = ConductPointCalculator.validateConversionCount(countText, pending, unit)
+                when {
+                    d == null -> error = "회의일을 입력해 주세요."
+                    input.error != null -> error = input.error
+                    memo.trim().length > ConductPointCalculator.MAX_MEMO_LENGTH ->
+                        error = "메모는 ${ConductPointCalculator.MAX_MEMO_LENGTH}자 이하로 입력해 주세요."
+                    else -> { error = null; onSubmit(input.count!!, d, memo.trim().ifBlank { null }) }
+                }
             },
             modifier = Modifier.padding(top = 8.dp),
         ) { Text("저장") }

@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kangminsang.hagoondori.core.calc.CombatRestCalculator
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
-import com.kangminsang.hagoondori.core.calc.ConductPointCalculator
 import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
 import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
+import com.kangminsang.hagoondori.core.model.ConductConversionRecord
+import com.kangminsang.hagoondori.core.model.ConductConversionType
 import com.kangminsang.hagoondori.core.model.ConductPoint
 import com.kangminsang.hagoondori.core.model.Overtime
 import com.kangminsang.hagoondori.core.model.ConductPointKind
@@ -23,6 +24,7 @@ import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.repository.CombatRestRepository
+import com.kangminsang.hagoondori.data.repository.ConductConversionRepository
 import com.kangminsang.hagoondori.data.repository.ConductPointRepository
 import com.kangminsang.hagoondori.data.repository.HolidayRepository
 import com.kangminsang.hagoondori.data.repository.LeaveRepository
@@ -53,6 +55,7 @@ class LeaveManagementViewModel @Inject constructor(
     private val overnightRepository: OvernightRepository,
     private val passRepository: PassRepository,
     private val conductPointRepository: ConductPointRepository,
+    private val conductConversionRepository: ConductConversionRepository,
     private val profileRepository: ProfileRepository,
     private val holidayRepository: HolidayRepository,
 ) : ViewModel() {
@@ -67,13 +70,14 @@ class LeaveManagementViewModel @Inject constructor(
         ) { profile, leaveData, combatRestData, overnightData, passHoliday ->
             build(profile, leaveData, combatRestData, overnightData, passHoliday)
         },
-        conductPointRepository.observeAll(),
-    ) { state, conductPoints -> state.copy(conductPoints = conductPoints) }
+        combine(conductPointRepository.observeAll(), conductConversionRepository.observeAll(), ::ConductData),
+    ) { state, conduct -> state.copy(conductPoints = conduct.points, conductConversions = conduct.conversions) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LeaveManagementUiState())
 
     private data class LeaveData(val types: List<LeaveType>, val grants: List<LeaveGrant>, val usages: List<LeaveUsage>)
     private data class CombatRestData(val grants: List<CombatRestGrant>, val usages: List<CombatRestUsage>)
     private data class OvernightData(val records: List<OvernightRecord>, val forfeitures: List<OvernightForfeiture>)
+    private data class ConductData(val points: List<ConductPoint>, val conversions: List<ConductConversionRecord>)
     private data class PassHolidayData(val records: List<PassRecord>, val holidays: List<Holiday>, val today: LocalDate)
 
     private fun build(
@@ -270,12 +274,13 @@ class LeaveManagementViewModel @Inject constructor(
         }
     }
 
-    /** 군기지도위원회가 정한 포상휴가 [days]일을 [meetingDate] 회의일로 부여 기록한다. 상한 초과 처리는 기존 부여 경로가 맡는다. */
-    fun grantRewardLeaveFromPoints(days: Int, meetingDate: LocalDate) {
-        viewModelScope.launch {
-            val type = ConductPointCalculator.findRewardLeaveType(uiState.value.leaveTypes) ?: return@launch
-            leaveRepository.addGrant(type.id, days, meetingDate, ConductPointCalculator.REWARD_CONVERSION_REASON)
-        }
+    /** 군기지도위원회 결과를 전환 기록으로만 남긴다. 휴가 부여·외박 차수 소멸은 만들지 않는다(사용자가 해당 탭에서 직접 기록). */
+    fun addConductConversion(type: ConductConversionType, meetingDate: LocalDate, count: Int, memo: String?) {
+        viewModelScope.launch { conductConversionRepository.add(meetingDate, type, count, memo) }
+    }
+
+    fun deleteConductConversion(record: ConductConversionRecord) {
+        viewModelScope.launch { conductConversionRepository.delete(record) }
     }
 
     fun deleteConductPoint(record: ConductPoint) {

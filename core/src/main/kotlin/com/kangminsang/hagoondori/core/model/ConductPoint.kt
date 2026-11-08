@@ -45,3 +45,26 @@ data class ConductPoint(
         }
     }
 }
+
+/** 위원회 결과의 종류: 포상휴가(양호 전환, [ConductConversionRecord.count] = 일수) / 외박제한(과실 전환, count = 횟수). */
+enum class ConductConversionType {
+    REWARD_LEAVE,
+    OVERNIGHT_RESTRICTION,
+}
+
+/**
+ * 군기지도위원회 결과 기록. 전환으로 차감되는 점수를 세는 근거일 뿐이며, 휴가 부여나 외박 차수 소멸은 만들지 않는다
+ * (사용자가 휴가·외박 탭에서 직접 기록한다). 장치로 보내지 않는다.
+ */
+data class ConductConversionRecord(
+    val id: String,
+    val meetingDate: LocalDate,
+    val type: ConductConversionType,
+    val count: Int,
+    val memo: String? = null,
+) {
+    init {
+        require(id.isNotBlank()) { "id는 비어 있을 수 없다" }
+        require(count > 0) { "일수·횟수는 0보다 커야 한다" }
+    }
+}

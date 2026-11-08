@@ -1,6 +1,7 @@
 package com.kangminsang.hagoondori.data.local
 
 import androidx.room.TypeConverter
+import com.kangminsang.hagoondori.core.model.ConductConversionType
 import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.DutyType
 import com.kangminsang.hagoondori.core.model.OverflowBehavior
@@ -57,6 +58,12 @@ class Converters {
 
     @TypeConverter
     fun toConductPointKind(value: String): ConductPointKind = ConductPointKind.valueOf(value)
+
+    @TypeConverter
+    fun fromConductConversionType(value: ConductConversionType): String = value.name
+
+    @TypeConverter
+    fun toConductConversionType(value: String): ConductConversionType = ConductConversionType.valueOf(value)
 
     @TypeConverter
     fun fromDutyType(value: DutyType): String = value.name

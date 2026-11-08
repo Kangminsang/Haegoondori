@@ -1,10 +1,10 @@
 package com.kangminsang.hagoondori.core.calc
 
+import com.kangminsang.hagoondori.core.model.ConductConversionRecord
+import com.kangminsang.hagoondori.core.model.ConductConversionType
 import com.kangminsang.hagoondori.core.model.ConductPoint
 import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
-import com.kangminsang.hagoondori.core.model.LeaveGrant
-import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.Overtime
 import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -162,20 +162,6 @@ class ConductPointCalculatorTest {
         assertTrue(ConductPointCalculator.isHolidayOvertime(LocalDate(2026, 11, 4), holidays)) // 공휴일
     }
 
-    @Test
-    fun `find reward leave type by id, name, then overflow behavior`() {
-        val other = com.kangminsang.hagoondori.core.model.LeaveType("a", "연가", cap = null)
-        val byName = com.kangminsang.hagoondori.core.model.LeaveType("b", "포상휴가", cap = 17)
-        val byBehavior = com.kangminsang.hagoondori.core.model.LeaveType(
-            "c", "상", cap = 17, overflowBehavior = com.kangminsang.hagoondori.core.model.OverflowBehavior.CONVERT_TO_COMBAT_REST,
-        )
-        val byId = com.kangminsang.hagoondori.core.model.LeaveType("leave-reward", "이름바뀜", cap = 17)
-        assertEquals("leave-reward", ConductPointCalculator.findRewardLeaveType(listOf(other, byName, byBehavior, byId))?.id)
-        assertEquals("b", ConductPointCalculator.findRewardLeaveType(listOf(other, byBehavior, byName))?.id)
-        assertEquals("c", ConductPointCalculator.findRewardLeaveType(listOf(other, byBehavior))?.id)
-        assertNull(ConductPointCalculator.findRewardLeaveType(listOf(other)))
-    }
-
     private fun conversion(merit: Int, demerit: Int, rewardDays: Int = 0, restrictions: Int = 0) =
         ConductConversion(merit, demerit, rewardDays, restrictions)
 
@@ -217,21 +203,26 @@ class ConductPointCalculatorTest {
     }
 
     @Test
-    fun `conversion counts applied records by reason`() {
+    fun `conversion sums record counts by type`() {
         val summary = ConductPointSummary(merit = 3000, demerit = 0)
-        val grants = listOf(
-            LeaveGrant("g1", "leave-reward", 1, LocalDate(2026, 11, 1), ConductPointCalculator.REWARD_CONVERSION_REASON),
-            LeaveGrant("g2", "leave-reward", 5, LocalDate(2026, 11, 1), "표창"),
+        val d = LocalDate(2026, 11, 5)
+        val records = listOf(
+            ConductConversionRecord("r1", d, ConductConversionType.REWARD_LEAVE, 1),
+            ConductConversionRecord("r2", d, ConductConversionType.REWARD_LEAVE, 1),
+            ConductConversionRecord("r3", d, ConductConversionType.OVERNIGHT_RESTRICTION, 1),
         )
-        val forfeitures = listOf(
-            OvernightForfeiture("f1", 0, ConductPointCalculator.OVERNIGHT_RESTRICTION_REASON),
-            OvernightForfeiture("f2", 1, "징계"),
-        )
-        val c = ConductPointCalculator.conversion(summary, grants, forfeitures)
-        assertEquals(1, c.rewardLeaveDaysApplied)
+        val c = ConductPointCalculator.conversion(summary, records)
+        assertEquals(2, c.rewardLeaveDaysApplied)
         assertEquals(1, c.overnightRestrictionsApplied)
-        assertEquals(3000 - 1000 + 2000, c.balance)
-        assertEquals(4, c.rewardLeaveDaysPending)
+        assertEquals(3000 - 2000 + 2000, c.balance)
+        assertEquals(3, c.rewardLeaveDaysPending)
+    }
+
+    @Test
+    fun `conversion record requires positive count`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ConductConversionRecord("r", LocalDate(2026, 11, 5), ConductConversionType.REWARD_LEAVE, 0)
+        }
     }
 
     @Test
@@ -261,13 +252,13 @@ class ConductPointCalculatorTest {
     }
 
     @Test
-    fun `validateRewardLeaveDays accepts 1 to pending only`() {
-        assertEquals(3, ConductPointCalculator.validateRewardLeaveDays(" 3 ", 3).days)
-        assertEquals(1, ConductPointCalculator.validateRewardLeaveDays("1", 3).days)
+    fun `validateConversionCount accepts 1 to pending only`() {
+        assertEquals(3, ConductPointCalculator.validateConversionCount(" 3 ", 3, "일").count)
+        assertEquals(1, ConductPointCalculator.validateConversionCount("1", 3, "일").count)
         for (bad in listOf("", "0", "4", "-1", "1.5", "abc")) {
-            val r = ConductPointCalculator.validateRewardLeaveDays(bad, 3)
-            assertNull(r.days, bad)
-            assertNotNull(r.error, bad)
+            val r = ConductPointCalculator.validateConversionCount(bad, 3, "회")
+            assertNull(r.count, bad)
+            assertEquals("1~3회로 입력해 주세요.", r.error, bad)
         }
     }
 }
