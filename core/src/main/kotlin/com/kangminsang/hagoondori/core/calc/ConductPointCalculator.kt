@@ -23,22 +23,44 @@ data class ConductPointInput(val centiPoints: Int?, val reason: String, val erro
 data class OvertimeHoursInput(val tenthHours: Int?, val error: String?)
 
 /**
- * 점수 전환 현황(누적). [rewardLeaveDaysEarned]/[overnightRestrictionsEarned]는 점수로 받을 수 있는 총량,
- * [meritTowardNext]/[demeritTowardNext]는 다음 전환까지 남은 점수(0.01점 단위)다.
- * 적용분 이후로 더 기록할 수 있는 양이 pending, 점수보다 많이 기록한 양이 overApplied다.
+ * 점수 전환 현황. 양호와 과실은 서로 상쇄하고 유효기간 없이 이월되며, 포상휴가·외박제한으로 전환한 만큼은 사라진다.
+ * 그래서 남은 점수는 하나의 [balance](0.01점 단위)로 본다: 양호 합 − 과실 합 − 포상휴가 전환분 + 외박제한 전환분.
+ * 양수면 남은 양호, 음수면 남은 과실이다.
  */
 data class ConductConversion(
-    val rewardLeaveDaysEarned: Int,
-    val meritTowardNext: Int,
-    val overnightRestrictionsEarned: Int,
-    val demeritTowardNext: Int,
+    val merit: Int,
+    val demerit: Int,
     val rewardLeaveDaysApplied: Int = 0,
     val overnightRestrictionsApplied: Int = 0,
 ) {
-    val rewardLeaveDaysPending: Int get() = maxOf(0, rewardLeaveDaysEarned - rewardLeaveDaysApplied)
-    val overnightRestrictionsPending: Int get() = maxOf(0, overnightRestrictionsEarned - overnightRestrictionsApplied)
-    val rewardLeaveOverApplied: Boolean get() = rewardLeaveDaysApplied > rewardLeaveDaysEarned
-    val overnightRestrictionOverApplied: Boolean get() = overnightRestrictionsApplied > overnightRestrictionsEarned
+    val balance: Int
+        get() = merit - demerit -
+            rewardLeaveDaysApplied * ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY +
+            overnightRestrictionsApplied * ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION
+
+    /** 남은 양호로 아직 기록하지 않은 포상휴가 일수. */
+    val rewardLeaveDaysPending: Int
+        get() = if (balance > 0) balance / ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY else 0
+
+    /** 남은 과실로 아직 기록하지 않은 외박제한 횟수. */
+    val overnightRestrictionsPending: Int
+        get() = if (balance < 0) -balance / ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION else 0
+
+    /** 남은 양호에서 포상휴가 1일을 더 받기까지 필요한 양호. 남은 과실이 있으면 그것을 먼저 상쇄해야 하므로 그만큼 더한다. */
+    val meritTowardNextRewardDay: Int
+        get() = if (balance >= 0) {
+            ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY - balance % ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY
+        } else {
+            -balance + ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY
+        }
+
+    /** 외박제한 1회가 더 걸리기까지 남은 과실. 남은 양호가 있으면 그것이 먼저 상쇄되므로 그만큼 더한다. */
+    val demeritTowardNextRestriction: Int
+        get() = if (balance <= 0) {
+            ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION - (-balance) % ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION
+        } else {
+            balance + ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION
+        }
 }
 
 object ConductPointCalculator {
@@ -152,16 +174,14 @@ object ConductPointCalculator {
             ?: types.firstOrNull { it.name == "포상휴가" }
             ?: types.firstOrNull { it.overflowBehavior == OverflowBehavior.CONVERT_TO_COMBAT_REST }
 
-    /** 점수 합계에서 전환 현황을 계산한다. 기록 전체를 누적하며 초기화하지 않는다. 적용분은 부여·제한 기록의 사유로 센다. */
+    /** 점수 합계와 지금까지의 전환 기록으로 전환 현황을 계산한다. 전환분은 부여·제한 기록의 사유로 센다. */
     fun conversion(
         summary: ConductPointSummary,
         grants: List<LeaveGrant> = emptyList(),
         forfeitures: List<OvernightForfeiture> = emptyList(),
     ): ConductConversion = ConductConversion(
-        rewardLeaveDaysEarned = summary.merit / CENTI_POINTS_PER_REWARD_LEAVE_DAY,
-        meritTowardNext = CENTI_POINTS_PER_REWARD_LEAVE_DAY - summary.merit % CENTI_POINTS_PER_REWARD_LEAVE_DAY,
-        overnightRestrictionsEarned = summary.demerit / CENTI_POINTS_PER_OVERNIGHT_RESTRICTION,
-        demeritTowardNext = CENTI_POINTS_PER_OVERNIGHT_RESTRICTION - summary.demerit % CENTI_POINTS_PER_OVERNIGHT_RESTRICTION,
+        merit = summary.merit,
+        demerit = summary.demerit,
         rewardLeaveDaysApplied = grants.filter { it.reason == REWARD_CONVERSION_REASON }.sumOf { it.days },
         overnightRestrictionsApplied = forfeitures.count { it.reason == OVERNIGHT_RESTRICTION_REASON },
     )

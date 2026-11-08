@@ -46,8 +46,8 @@ private enum class EntryMode(val label: String) { MERIT("양호"), DEMERIT("과�
 
 /**
  * 점수 탭: 양호·과실 점수 합계와 기록, 초과근무 양호 기록, 점수 전환 현황.
- * 양호 10점마다 포상휴가 1일, 과실 20점마다 외박제한 1회를 누적 기준으로 계산하고,
- * 아직 기록하지 않은 만큼을 버튼 한 번으로 휴가 부여 / 외박 차수 소멸 기록으로 남긴다.
+ * 양호와 과실은 서로 상쇄하고 기한 없이 이월된다. 남은 양호 10점마다 포상휴가 1일, 남은 과실 20점마다 외박제한 1회이며,
+ * 버튼으로 휴가 부여 / 외박 차수 소멸을 기록하면 그만큼의 점수가 사라진다.
  * 장치로 보내지 않는 개인 기록이다.
  */
 @Composable
@@ -75,19 +75,41 @@ fun ConductPointTab(
                     Text("양호 ${ConductPointCalculator.format(summary.merit)}점", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Text("과실 ${ConductPointCalculator.format(summary.demerit)}점", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 }
-                val net = summary.net
+                if (conversion.rewardLeaveDaysApplied > 0 || conversion.overnightRestrictionsApplied > 0) {
+                    Text(
+                        "전환해서 사라진 점수: " + listOfNotNull(
+                            conversion.rewardLeaveDaysApplied.takeIf { it > 0 }?.let {
+                                "포상휴가 ${it}일(양호 −${ConductPointCalculator.format(it * ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY)}점)"
+                            },
+                            conversion.overnightRestrictionsApplied.takeIf { it > 0 }?.let {
+                                "외박제한 ${it}회(과실 −${ConductPointCalculator.format(it * ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION)}점)"
+                            },
+                        ).joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                val balance = conversion.balance
                 Text(
-                    "합계 " + (if (net > 0) "+" else if (net < 0) "−" else "") + "${ConductPointCalculator.format(net)}점",
+                    when {
+                        balance > 0 -> "남은 점수 양호 ${ConductPointCalculator.format(balance)}점"
+                        balance < 0 -> "남은 점수 과실 ${ConductPointCalculator.format(balance)}점"
+                        else -> "남은 점수 0점"
+                    },
                     style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
                 Text(
-                    "포상휴가 ${conversion.rewardLeaveDaysEarned}일 (다음 1일까지 ${ConductPointCalculator.format(conversion.meritTowardNext)}점)",
+                    "양호와 과실은 서로 상쇄하고, 기한 없이 다음 달로 이어져요.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    "다음 포상휴가 1일까지 양호 ${ConductPointCalculator.format(conversion.meritTowardNextRewardDay)}점",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 Text(
-                    "외박제한 ${conversion.overnightRestrictionsEarned}회 (다음 1회까지 ${ConductPointCalculator.format(conversion.demeritTowardNext)}점)",
+                    "다음 외박제한 1회까지 과실 ${ConductPointCalculator.format(conversion.demeritTowardNextRestriction)}점",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -97,6 +119,7 @@ fun ConductPointTab(
             Card(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("받을 수 있는 포상휴가 ${conversion.rewardLeaveDaysPending}일", style = MaterialTheme.typography.titleMedium)
+                    Text("기록하면 양호 ${ConductPointCalculator.format(conversion.rewardLeaveDaysPending * ConductPointCalculator.CENTI_POINTS_PER_REWARD_LEAVE_DAY)}점이 차감돼요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
                     if (rewardLeaveType == null) {
                         Text("포상휴가 종류가 없어요. 휴가 탭에서 추가해 주세요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
                     } else {
@@ -111,6 +134,7 @@ fun ConductPointTab(
             Card(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("제한할 외박 ${conversion.overnightRestrictionsPending}회", style = MaterialTheme.typography.titleMedium)
+                    Text("1회 기록할 때마다 과실 ${ConductPointCalculator.format(ConductPointCalculator.CENTI_POINTS_PER_OVERNIGHT_RESTRICTION)}점이 차감돼요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
                     if (uiState.upcomingSlotOptions.isEmpty()) {
                         Text("설정에서 첫 외박일을 입력하면 외박 차수에 기록할 수 있어요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
                     } else {
@@ -122,13 +146,6 @@ fun ConductPointTab(
                 }
             }
         }
-        if (conversion.rewardLeaveOverApplied) {
-            Text("이미 기록한 포상휴가가 지금 점수로 받을 수 있는 일수보다 많아요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        }
-        if (conversion.overnightRestrictionOverApplied) {
-            Text("이미 기록한 외박제한이 지금 점수로 받을 수 있는 횟수보다 많아요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        }
-
         TextButton(onClick = { showForm = !showForm; editingId = null }, modifier = Modifier.padding(top = 16.dp)) {
             Text(if (showForm) "닫기" else "+ 점수 기록 추가")
         }

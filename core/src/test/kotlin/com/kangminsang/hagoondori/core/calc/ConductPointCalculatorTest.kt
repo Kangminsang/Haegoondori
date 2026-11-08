@@ -176,23 +176,49 @@ class ConductPointCalculatorTest {
         assertNull(ConductPointCalculator.findRewardLeaveType(listOf(other)))
     }
 
+    private fun conversion(merit: Int, demerit: Int, rewardDays: Int = 0, restrictions: Int = 0) =
+        ConductConversion(merit, demerit, rewardDays, restrictions)
+
     @Test
-    fun `conversion counts reward days and restrictions cumulatively`() {
-        val c = ConductPointCalculator.conversion(ConductPointSummary(merit = 2650, demerit = 500))
-        assertEquals(2, c.rewardLeaveDaysEarned)
-        assertEquals(350, c.meritTowardNext)
-        assertEquals(0, c.overnightRestrictionsEarned)
-        assertEquals(1500, c.demeritTowardNext)
-        val exact = ConductPointCalculator.conversion(ConductPointSummary(merit = 1000, demerit = 4000))
-        assertEquals(1, exact.rewardLeaveDaysEarned)
-        assertEquals(1000, exact.meritTowardNext)
-        assertEquals(2, exact.overnightRestrictionsEarned)
-        assertEquals(2000, exact.demeritTowardNext)
+    fun `merit and demerit offset each other`() {
+        val c = conversion(merit = 2650, demerit = 500)
+        assertEquals(2150, c.balance)
+        assertEquals(2, c.rewardLeaveDaysPending)
+        assertEquals(850, c.meritTowardNextRewardDay)
+        assertEquals(0, c.overnightRestrictionsPending)
+        assertEquals(4150, c.demeritTowardNextRestriction)
+
+        val offset = conversion(merit = 1500, demerit = 1000)
+        assertEquals(0, offset.rewardLeaveDaysPending)
+        assertEquals(500, offset.meritTowardNextRewardDay)
     }
 
     @Test
-    fun `pending is earned minus applied and over-applied is flagged`() {
-        val summary = ConductPointSummary(merit = 3000, demerit = 4000)
+    fun `remaining demerit leads to overnight restriction`() {
+        val c = conversion(merit = 500, demerit = 5000)
+        assertEquals(-4500, c.balance)
+        assertEquals(2, c.overnightRestrictionsPending)
+        assertEquals(1500, c.demeritTowardNextRestriction)
+        assertEquals(0, c.rewardLeaveDaysPending)
+        assertEquals(5500, c.meritTowardNextRewardDay)
+    }
+
+    @Test
+    fun `converted points are used up`() {
+        val afterReward = conversion(merit = 2650, demerit = 0, rewardDays = 2)
+        assertEquals(650, afterReward.balance)
+        assertEquals(0, afterReward.rewardLeaveDaysPending)
+        assertEquals(350, afterReward.meritTowardNextRewardDay)
+
+        val afterRestriction = conversion(merit = 0, demerit = 4500, restrictions = 2)
+        assertEquals(-500, afterRestriction.balance)
+        assertEquals(0, afterRestriction.overnightRestrictionsPending)
+        assertEquals(1500, afterRestriction.demeritTowardNextRestriction)
+    }
+
+    @Test
+    fun `conversion counts applied records by reason`() {
+        val summary = ConductPointSummary(merit = 3000, demerit = 0)
         val grants = listOf(
             LeaveGrant("g1", "leave-reward", 1, LocalDate(2026, 11, 1), ConductPointCalculator.REWARD_CONVERSION_REASON),
             LeaveGrant("g2", "leave-reward", 5, LocalDate(2026, 11, 1), "표창"),
@@ -203,14 +229,8 @@ class ConductPointCalculatorTest {
         )
         val c = ConductPointCalculator.conversion(summary, grants, forfeitures)
         assertEquals(1, c.rewardLeaveDaysApplied)
-        assertEquals(2, c.rewardLeaveDaysPending)
         assertEquals(1, c.overnightRestrictionsApplied)
-        assertEquals(1, c.overnightRestrictionsPending)
-        assertFalse(c.rewardLeaveOverApplied)
-
-        val less = ConductPointCalculator.conversion(ConductPointSummary(merit = 0, demerit = 0), grants, forfeitures)
-        assertEquals(0, less.rewardLeaveDaysPending)
-        assertTrue(less.rewardLeaveOverApplied)
-        assertTrue(less.overnightRestrictionOverApplied)
+        assertEquals(3000 - 1000 + 2000, c.balance)
+        assertEquals(4, c.rewardLeaveDaysPending)
     }
 }
