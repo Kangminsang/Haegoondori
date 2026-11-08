@@ -2,6 +2,7 @@ package com.kangminsang.hagoondori.data.repository
 
 import com.kangminsang.hagoondori.core.model.ConductPoint
 import com.kangminsang.hagoondori.core.model.ConductPointKind
+import com.kangminsang.hagoondori.core.model.Overtime
 import com.kangminsang.hagoondori.data.local.dao.ConductPointDao
 import com.kangminsang.hagoondori.data.mapper.toCore
 import com.kangminsang.hagoondori.data.mapper.toEntity
@@ -20,8 +21,8 @@ class ConductPointRepository @Inject constructor(
     fun observeAll(): Flow<List<ConductPoint>> =
         dao.observeAll().map { list -> list.map { it.toCore() } }
 
-    suspend fun add(date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?): ConductPoint {
-        val record = ConductPoint(IdGenerator.newId(), date, kind, centiPoints, reason, memo)
+    suspend fun add(date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?, overtime: Overtime? = null): ConductPoint {
+        val record = ConductPoint(IdGenerator.newId(), date, kind, centiPoints, reason, memo, overtime)
         dao.upsert(record.toEntity())
         return record
     }

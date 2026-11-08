@@ -2,10 +2,17 @@ package com.kangminsang.hagoondori.core.calc
 
 import com.kangminsang.hagoondori.core.model.ConductPoint
 import com.kangminsang.hagoondori.core.model.ConductPointKind
+import com.kangminsang.hagoondori.core.model.Holiday
+import com.kangminsang.hagoondori.core.model.LeaveGrant
+import com.kangminsang.hagoondori.core.model.OvernightForfeiture
+import com.kangminsang.hagoondori.core.model.Overtime
 import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class ConductPointCalculatorTest {
@@ -92,5 +99,118 @@ class ConductPointCalculatorTest {
         assertNotNull(ConductPointCalculator.validate("1", "   ").error)
         assertNotNull(ConductPointCalculator.validate("1", "가".repeat(51)).error)
         assertNull(ConductPointCalculator.validate("1", "가".repeat(50)).error)
+    }
+
+    @Test
+    fun `overtime points are exact for weekday and holiday`() {
+        assertEquals(50, ConductPointCalculator.overtimeCentiPoints(10, onHoliday = false))
+        assertEquals(75, ConductPointCalculator.overtimeCentiPoints(15, onHoliday = false))
+        assertEquals(100, ConductPointCalculator.overtimeCentiPoints(10, onHoliday = true))
+        assertEquals(300, ConductPointCalculator.overtimeCentiPoints(30, onHoliday = true))
+        assertEquals(5, ConductPointCalculator.overtimeCentiPoints(1, onHoliday = false))
+    }
+
+    @Test
+    fun `parse hours accepts one decimal place`() {
+        assertEquals(20, ConductPointCalculator.parseTenthHours("2"))
+        assertEquals(15, ConductPointCalculator.parseTenthHours("1.5"))
+        assertEquals(5, ConductPointCalculator.parseTenthHours(".5"))
+        assertEquals(240, ConductPointCalculator.parseTenthHours("24"))
+        assertNull(ConductPointCalculator.parseTenthHours("1.25"))
+        assertNull(ConductPointCalculator.parseTenthHours("abc"))
+        assertNull(ConductPointCalculator.parseTenthHours(""))
+        assertNull(ConductPointCalculator.parseTenthHours("-1"))
+    }
+
+    @Test
+    fun `validate overtime hours enforces 0_1 to 24`() {
+        assertNull(ConductPointCalculator.validateOvertimeHours("0.1").error)
+        assertEquals(1, ConductPointCalculator.validateOvertimeHours("0.1").tenthHours)
+        assertNull(ConductPointCalculator.validateOvertimeHours("24").error)
+        assertNotNull(ConductPointCalculator.validateOvertimeHours("0").error)
+        assertNotNull(ConductPointCalculator.validateOvertimeHours("24.1").error)
+        assertNotNull(ConductPointCalculator.validateOvertimeHours("1.25").error)
+    }
+
+    @Test
+    fun `format hours and default reason`() {
+        assertEquals("1.5", ConductPointCalculator.formatHours(15))
+        assertEquals("3", ConductPointCalculator.formatHours(30))
+        assertEquals("평일 초과근무 1.5시간", ConductPointCalculator.overtimeReason(15, onHoliday = false))
+        assertEquals("휴일 초과근무 3시간", ConductPointCalculator.overtimeReason(30, onHoliday = true))
+    }
+
+    @Test
+    fun `overtime record requires merit kind and matching points`() {
+        val ok = ConductPoint("o1", LocalDate(2026, 11, 3), ConductPointKind.MERIT, 75, "야근", overtime = Overtime(15, false))
+        assertEquals(75, ok.centiPoints)
+        assertThrows(IllegalArgumentException::class.java) {
+            ConductPoint("o2", LocalDate(2026, 11, 3), ConductPointKind.DEMERIT, 75, "x", overtime = Overtime(15, false))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ConductPoint("o3", LocalDate(2026, 11, 3), ConductPointKind.MERIT, 100, "x", overtime = Overtime(15, false))
+        }
+        assertThrows(IllegalArgumentException::class.java) { Overtime(0, false) }
+        assertThrows(IllegalArgumentException::class.java) { Overtime(241, true) }
+    }
+
+    @Test
+    fun `holiday classification uses weekends and holidays`() {
+        val holidays = listOf(Holiday(LocalDate(2026, 11, 4), "임시"))
+        assertFalse(ConductPointCalculator.isHolidayOvertime(LocalDate(2026, 11, 3), holidays)) // 화
+        assertTrue(ConductPointCalculator.isHolidayOvertime(LocalDate(2026, 11, 7), holidays)) // 토
+        assertTrue(ConductPointCalculator.isHolidayOvertime(LocalDate(2026, 11, 4), holidays)) // 공휴일
+    }
+
+    @Test
+    fun `find reward leave type by id, name, then overflow behavior`() {
+        val other = com.kangminsang.hagoondori.core.model.LeaveType("a", "연가", cap = null)
+        val byName = com.kangminsang.hagoondori.core.model.LeaveType("b", "포상휴가", cap = 17)
+        val byBehavior = com.kangminsang.hagoondori.core.model.LeaveType(
+            "c", "상", cap = 17, overflowBehavior = com.kangminsang.hagoondori.core.model.OverflowBehavior.CONVERT_TO_COMBAT_REST,
+        )
+        val byId = com.kangminsang.hagoondori.core.model.LeaveType("leave-reward", "이름바뀜", cap = 17)
+        assertEquals("leave-reward", ConductPointCalculator.findRewardLeaveType(listOf(other, byName, byBehavior, byId))?.id)
+        assertEquals("b", ConductPointCalculator.findRewardLeaveType(listOf(other, byBehavior, byName))?.id)
+        assertEquals("c", ConductPointCalculator.findRewardLeaveType(listOf(other, byBehavior))?.id)
+        assertNull(ConductPointCalculator.findRewardLeaveType(listOf(other)))
+    }
+
+    @Test
+    fun `conversion counts reward days and restrictions cumulatively`() {
+        val c = ConductPointCalculator.conversion(ConductPointSummary(merit = 2650, demerit = 500))
+        assertEquals(2, c.rewardLeaveDaysEarned)
+        assertEquals(350, c.meritTowardNext)
+        assertEquals(0, c.overnightRestrictionsEarned)
+        assertEquals(1500, c.demeritTowardNext)
+        val exact = ConductPointCalculator.conversion(ConductPointSummary(merit = 1000, demerit = 4000))
+        assertEquals(1, exact.rewardLeaveDaysEarned)
+        assertEquals(1000, exact.meritTowardNext)
+        assertEquals(2, exact.overnightRestrictionsEarned)
+        assertEquals(2000, exact.demeritTowardNext)
+    }
+
+    @Test
+    fun `pending is earned minus applied and over-applied is flagged`() {
+        val summary = ConductPointSummary(merit = 3000, demerit = 4000)
+        val grants = listOf(
+            LeaveGrant("g1", "leave-reward", 1, LocalDate(2026, 11, 1), ConductPointCalculator.REWARD_CONVERSION_REASON),
+            LeaveGrant("g2", "leave-reward", 5, LocalDate(2026, 11, 1), "표창"),
+        )
+        val forfeitures = listOf(
+            OvernightForfeiture("f1", 0, ConductPointCalculator.OVERNIGHT_RESTRICTION_REASON),
+            OvernightForfeiture("f2", 1, "징계"),
+        )
+        val c = ConductPointCalculator.conversion(summary, grants, forfeitures)
+        assertEquals(1, c.rewardLeaveDaysApplied)
+        assertEquals(2, c.rewardLeaveDaysPending)
+        assertEquals(1, c.overnightRestrictionsApplied)
+        assertEquals(1, c.overnightRestrictionsPending)
+        assertFalse(c.rewardLeaveOverApplied)
+
+        val less = ConductPointCalculator.conversion(ConductPointSummary(merit = 0, demerit = 0), grants, forfeitures)
+        assertEquals(0, less.rewardLeaveDaysPending)
+        assertTrue(less.rewardLeaveOverApplied)
+        assertTrue(less.overnightRestrictionOverApplied)
     }
 }

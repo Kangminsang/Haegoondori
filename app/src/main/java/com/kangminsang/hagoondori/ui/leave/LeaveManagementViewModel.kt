@@ -4,11 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kangminsang.hagoondori.core.calc.CombatRestCalculator
 import com.kangminsang.hagoondori.core.calc.LeaveCalculator
+import com.kangminsang.hagoondori.core.calc.ConductPointCalculator
 import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
 import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.ConductPoint
+import com.kangminsang.hagoondori.core.model.Overtime
 import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveGrant
@@ -248,13 +250,31 @@ class LeaveManagementViewModel @Inject constructor(
 
     // ---- 점수 ----
 
-    fun addConductPoint(date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) {
-        viewModelScope.launch { conductPointRepository.add(date, kind, centiPoints, reason, memo) }
+    fun addConductPoint(date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?, overtime: Overtime? = null) {
+        viewModelScope.launch { conductPointRepository.add(date, kind, centiPoints, reason, memo, overtime) }
     }
 
-    fun updateConductPoint(record: ConductPoint, date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) {
+    fun updateConductPoint(
+        record: ConductPoint,
+        date: LocalDate,
+        kind: ConductPointKind,
+        centiPoints: Int,
+        reason: String,
+        memo: String?,
+        overtime: Overtime? = null,
+    ) {
         viewModelScope.launch {
-            conductPointRepository.update(record.copy(date = date, kind = kind, centiPoints = centiPoints, reason = reason, memo = memo))
+            conductPointRepository.update(
+                record.copy(date = date, kind = kind, centiPoints = centiPoints, reason = reason, memo = memo, overtime = overtime),
+            )
+        }
+    }
+
+    /** 양호 점수로 받을 수 있는 포상휴가 [days]일을 한 번에 부여 기록한다. 상한 초과 처리는 기존 부여 경로가 맡는다. */
+    fun grantRewardLeaveFromPoints(days: Int) {
+        viewModelScope.launch {
+            val type = ConductPointCalculator.findRewardLeaveType(uiState.value.leaveTypes) ?: return@launch
+            leaveRepository.addGrant(type.id, days, AppClock.today(), ConductPointCalculator.REWARD_CONVERSION_REASON)
         }
     }
 

@@ -80,6 +80,8 @@ fun LeaveManagementScreen(
                     onAdd = viewModel::addConductPoint,
                     onUpdate = viewModel::updateConductPoint,
                     onDelete = viewModel::deleteConductPoint,
+                    onGrantRewardLeave = viewModel::grantRewardLeaveFromPoints,
+                    onAddOvernightRestriction = viewModel::addOvernightForfeiture,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

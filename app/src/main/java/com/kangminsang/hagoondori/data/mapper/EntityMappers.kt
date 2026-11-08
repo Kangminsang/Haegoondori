@@ -11,6 +11,7 @@ import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
 import com.kangminsang.hagoondori.core.model.ConductPoint
+import com.kangminsang.hagoondori.core.model.Overtime
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PromotionDates
 import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
@@ -90,8 +91,13 @@ fun OvernightForfeiture.toEntity(): OvernightForfeitureEntity =
 fun PassRecordEntity.toCore(): PassRecord = PassRecord(id, date, type, memo)
 fun PassRecord.toEntity(): PassRecordEntity = PassRecordEntity(id, date, type, memo)
 
-fun ConductPointEntity.toCore(): ConductPoint = ConductPoint(id, date, kind, centiPoints, reason, memo)
-fun ConductPoint.toEntity(): ConductPointEntity = ConductPointEntity(id, date, kind, centiPoints, reason, memo)
+fun ConductPointEntity.toCore(): ConductPoint = ConductPoint(
+    id, date, kind, centiPoints, reason, memo,
+    overtime = if (overtimeTenthHours != null && overtimeOnHoliday != null) Overtime(overtimeTenthHours, overtimeOnHoliday) else null,
+)
+fun ConductPoint.toEntity(): ConductPointEntity = ConductPointEntity(
+    id, date, kind, centiPoints, reason, memo, overtime?.tenthHours, overtime?.onHoliday,
+)
 
 fun EventEntity.toCore(): Event = Event(id, title, startDate, endDate, isImportant, memo)
 fun Event.toEntity(): EventEntity = EventEntity(id, title, startDate, endDate, isImportant, memo)

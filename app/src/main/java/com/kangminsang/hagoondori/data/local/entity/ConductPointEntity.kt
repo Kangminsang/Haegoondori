@@ -14,4 +14,7 @@ data class ConductPointEntity(
     val centiPoints: Int,
     val reason: String,
     val memo: String?,
+    /** 초과근무 기록이면 근무 시간(0.1시간 단위)과 휴일 여부. 둘은 함께 null이거나 함께 값이 있다. */
+    val overtimeTenthHours: Int? = null,
+    val overtimeOnHoliday: Boolean? = null,
 )

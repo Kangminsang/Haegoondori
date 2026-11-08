@@ -143,13 +143,13 @@ abstract class HagoondoriDatabase : RoomDatabase() {
             }
         }
 
-        /** 양호·과실 점수 기록 표를 추가한다. 장치로 보내지 않는 데이터다. */
+        /** 양호·과실 점수 기록 표(초과근무 열 포함)를 추가한다. 장치로 보내지 않는 데이터다. */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `conduct_point` (`id` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
                         "`kind` TEXT NOT NULL, `centiPoints` INTEGER NOT NULL, `reason` TEXT NOT NULL, `memo` TEXT, " +
-                        "PRIMARY KEY(`id`))",
+                        "`overtimeTenthHours` INTEGER, `overtimeOnHoliday` INTEGER, PRIMARY KEY(`id`))",
                 )
             }
         }
