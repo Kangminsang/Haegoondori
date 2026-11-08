@@ -1,6 +1,7 @@
 package com.kangminsang.hagoondori.data.local
 
 import androidx.room.TypeConverter
+import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.DutyType
 import com.kangminsang.hagoondori.core.model.OverflowBehavior
 import com.kangminsang.hagoondori.core.model.PassType
@@ -50,6 +51,12 @@ class Converters {
 
     @TypeConverter
     fun toPassType(value: String): PassType = PassType.valueOf(value)
+
+    @TypeConverter
+    fun fromConductPointKind(value: ConductPointKind): String = value.name
+
+    @TypeConverter
+    fun toConductPointKind(value: String): ConductPointKind = ConductPointKind.valueOf(value)
 
     @TypeConverter
     fun fromDutyType(value: DutyType): String = value.name

@@ -5,6 +5,7 @@ import com.kangminsang.hagoondori.core.calc.OvernightSchedule
 import com.kangminsang.hagoondori.core.calc.RemainingOvernight
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
+import com.kangminsang.hagoondori.core.model.ConductPoint
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
@@ -43,4 +44,6 @@ data class LeaveManagementUiState(
 
     val passRecords: List<PassRecord> = emptyList(),
     val holidays: List<Holiday> = emptyList(),
+
+    val conductPoints: List<ConductPoint> = emptyList(),
 )

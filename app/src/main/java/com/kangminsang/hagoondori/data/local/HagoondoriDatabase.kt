@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kangminsang.hagoondori.data.local.dao.CombatRestDao
+import com.kangminsang.hagoondori.data.local.dao.ConductPointDao
 import com.kangminsang.hagoondori.data.local.dao.DutyDao
 import com.kangminsang.hagoondori.data.local.dao.EventDao
 import com.kangminsang.hagoondori.data.local.dao.HolidayDao
@@ -19,6 +20,7 @@ import com.kangminsang.hagoondori.data.local.dao.SyncStateDao
 import com.kangminsang.hagoondori.data.local.dao.UserProfileDao
 import com.kangminsang.hagoondori.data.local.entity.CombatRestGrantEntity
 import com.kangminsang.hagoondori.data.local.entity.CombatRestUsageEntity
+import com.kangminsang.hagoondori.data.local.entity.ConductPointEntity
 import com.kangminsang.hagoondori.data.local.entity.DutyAssignmentEntity
 import com.kangminsang.hagoondori.data.local.entity.EventEntity
 import com.kangminsang.hagoondori.data.local.entity.HolidayEntity
@@ -48,6 +50,7 @@ import com.kangminsang.hagoondori.data.local.entity.UserProfileEntity
         OvernightRecordEntity::class,
         OvernightForfeitureEntity::class,
         PassRecordEntity::class,
+        ConductPointEntity::class,
         EventEntity::class,
         DutyAssignmentEntity::class,
         HolidayEntity::class,
@@ -64,6 +67,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
     abstract fun combatRestDao(): CombatRestDao
     abstract fun overnightDao(): OvernightDao
     abstract fun passDao(): PassDao
+    abstract fun conductPointDao(): ConductPointDao
     abstract fun eventDao(): EventDao
     abstract fun dutyDao(): DutyDao
     abstract fun holidayDao(): HolidayDao
@@ -74,7 +78,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         const val DATABASE_NAME = "hagoondori.db"
 
         /** 현재 스키마 버전. `@Database(version = ...)`과 같은 값이며, 백업 파일의 호환성 판정에도 쓴다. */
-        const val VERSION = 9
+        const val VERSION = 10
 
         /**
          * 마이그레이션 전체와 [SEED_DEFAULT_LEAVE_TYPES]를 갖춘 DB를 만든다. 앱 DB([DATABASE_NAME])와
@@ -84,7 +88,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
             Room.databaseBuilder(context, HagoondoriDatabase::class.java, name)
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9,
+                    MIGRATION_8_9, MIGRATION_9_10,
                 )
                 .addCallback(SEED_DEFAULT_LEAVE_TYPES)
                 .build()
@@ -136,6 +140,17 @@ abstract class HagoondoriDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 seedDefaultLeaveTypes(db)
+            }
+        }
+
+        /** 양호·과실 점수 기록 표를 추가한다. 장치로 보내지 않는 데이터다. */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `conduct_point` (`id` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
+                        "`kind` TEXT NOT NULL, `points` INTEGER NOT NULL, `reason` TEXT NOT NULL, `memo` TEXT, " +
+                        "PRIMARY KEY(`id`))",
+                )
             }
         }
 

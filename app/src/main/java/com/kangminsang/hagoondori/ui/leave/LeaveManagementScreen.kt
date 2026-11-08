@@ -17,10 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-private val TAB_TITLES = listOf("휴가", "전투휴무", "외박", "외출")
+private val TAB_TITLES = listOf("휴가", "전투휴무", "외박", "외출", "점수")
 
 /**
- * ③ 출타 관리 (스펙 5.1/5.2절, F7~F14) - 휴가/전투휴무/외박/외출 4개 탭.
+ * ③ 출타 관리 (스펙 5.1/5.2절, F7~F14) - 휴가/전투휴무/외박/외출/점수 5개 탭.
  */
 @Composable
 fun LeaveManagementScreen(
@@ -73,6 +73,13 @@ fun LeaveManagementScreen(
                 3 -> PassTab(
                     uiState = uiState,
                     onAddRecord = viewModel::addPassRecord,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                4 -> ConductPointTab(
+                    uiState = uiState,
+                    onAdd = viewModel::addConductPoint,
+                    onUpdate = viewModel::updateConductPoint,
+                    onDelete = viewModel::deleteConductPoint,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

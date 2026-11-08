@@ -8,6 +8,8 @@ import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
 import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.model.CombatRestGrant
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
+import com.kangminsang.hagoondori.core.model.ConductPoint
+import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.LeaveType
@@ -19,6 +21,7 @@ import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PassType
 import com.kangminsang.hagoondori.core.model.UserProfile
 import com.kangminsang.hagoondori.data.repository.CombatRestRepository
+import com.kangminsang.hagoondori.data.repository.ConductPointRepository
 import com.kangminsang.hagoondori.data.repository.HolidayRepository
 import com.kangminsang.hagoondori.data.repository.LeaveRepository
 import com.kangminsang.hagoondori.data.repository.OvernightRepository
@@ -47,19 +50,24 @@ class LeaveManagementViewModel @Inject constructor(
     private val combatRestRepository: CombatRestRepository,
     private val overnightRepository: OvernightRepository,
     private val passRepository: PassRepository,
+    private val conductPointRepository: ConductPointRepository,
     private val profileRepository: ProfileRepository,
     private val holidayRepository: HolidayRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<LeaveManagementUiState> = combine(
-        profileRepository.observe(),
-        combine(leaveRepository.observeTypes(), leaveRepository.observeAllGrants(), leaveRepository.observeAllUsages(), ::LeaveData),
-        combine(combatRestRepository.observeGrants(), combatRestRepository.observeUsages(), ::CombatRestData),
-        combine(overnightRepository.observeRecords(), overnightRepository.observeForfeitures(), ::OvernightData),
-        combine(passRepository.observeAll(), holidayRepository.observeAll(), AppClock.todayFlow(), ::PassHolidayData),
-    ) { profile, leaveData, combatRestData, overnightData, passHoliday ->
-        build(profile, leaveData, combatRestData, overnightData, passHoliday)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LeaveManagementUiState())
+        combine(
+            profileRepository.observe(),
+            combine(leaveRepository.observeTypes(), leaveRepository.observeAllGrants(), leaveRepository.observeAllUsages(), ::LeaveData),
+            combine(combatRestRepository.observeGrants(), combatRestRepository.observeUsages(), ::CombatRestData),
+            combine(overnightRepository.observeRecords(), overnightRepository.observeForfeitures(), ::OvernightData),
+            combine(passRepository.observeAll(), holidayRepository.observeAll(), AppClock.todayFlow(), ::PassHolidayData),
+        ) { profile, leaveData, combatRestData, overnightData, passHoliday ->
+            build(profile, leaveData, combatRestData, overnightData, passHoliday)
+        },
+        conductPointRepository.observeAll(),
+    ) { state, conductPoints -> state.copy(conductPoints = conductPoints) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LeaveManagementUiState())
 
     private data class LeaveData(val types: List<LeaveType>, val grants: List<LeaveGrant>, val usages: List<LeaveUsage>)
     private data class CombatRestData(val grants: List<CombatRestGrant>, val usages: List<CombatRestUsage>)
@@ -236,6 +244,22 @@ class LeaveManagementViewModel @Inject constructor(
             val type = explicitType ?: PassCalculator.classifyType(date, holidays)
             passRepository.addRecord(date, type, memo)
         }
+    }
+
+    // ---- 점수 ----
+
+    fun addConductPoint(date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) {
+        viewModelScope.launch { conductPointRepository.add(date, kind, points, reason, memo) }
+    }
+
+    fun updateConductPoint(record: ConductPoint, date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) {
+        viewModelScope.launch {
+            conductPointRepository.update(record.copy(date = date, kind = kind, points = points, reason = reason, memo = memo))
+        }
+    }
+
+    fun deleteConductPoint(record: ConductPoint) {
+        viewModelScope.launch { conductPointRepository.delete(record) }
     }
 
     private companion object {
