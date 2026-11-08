@@ -90,8 +90,8 @@ fun OvernightForfeiture.toEntity(): OvernightForfeitureEntity =
 fun PassRecordEntity.toCore(): PassRecord = PassRecord(id, date, type, memo)
 fun PassRecord.toEntity(): PassRecordEntity = PassRecordEntity(id, date, type, memo)
 
-fun ConductPointEntity.toCore(): ConductPoint = ConductPoint(id, date, kind, points, reason, memo)
-fun ConductPoint.toEntity(): ConductPointEntity = ConductPointEntity(id, date, kind, points, reason, memo)
+fun ConductPointEntity.toCore(): ConductPoint = ConductPoint(id, date, kind, centiPoints, reason, memo)
+fun ConductPoint.toEntity(): ConductPointEntity = ConductPointEntity(id, date, kind, centiPoints, reason, memo)
 
 fun EventEntity.toCore(): Event = Event(id, title, startDate, endDate, isImportant, memo)
 fun Event.toEntity(): EventEntity = EventEntity(id, title, startDate, endDate, isImportant, memo)

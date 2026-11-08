@@ -11,7 +11,7 @@ data class ConductPointEntity(
     @PrimaryKey val id: String,
     val date: LocalDate,
     val kind: ConductPointKind,
-    val points: Int,
+    val centiPoints: Int,
     val reason: String,
     val memo: String?,
 )

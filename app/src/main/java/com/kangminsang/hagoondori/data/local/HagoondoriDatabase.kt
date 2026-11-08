@@ -148,7 +148,7 @@ abstract class HagoondoriDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `conduct_point` (`id` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
-                        "`kind` TEXT NOT NULL, `points` INTEGER NOT NULL, `reason` TEXT NOT NULL, `memo` TEXT, " +
+                        "`kind` TEXT NOT NULL, `centiPoints` INTEGER NOT NULL, `reason` TEXT NOT NULL, `memo` TEXT, " +
                         "PRIMARY KEY(`id`))",
                 )
             }

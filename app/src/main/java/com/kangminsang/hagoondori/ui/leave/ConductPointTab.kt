@@ -41,8 +41,8 @@ private fun ConductPointKind.label() = if (this == ConductPointKind.MERIT) "양�
 @Composable
 fun ConductPointTab(
     uiState: LeaveManagementUiState,
-    onAdd: (date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) -> Unit,
-    onUpdate: (record: ConductPoint, date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) -> Unit,
+    onAdd: (date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) -> Unit,
+    onUpdate: (record: ConductPoint, date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) -> Unit,
     onDelete: (ConductPoint) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -56,12 +56,12 @@ fun ConductPointTab(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("양호·과실 점수", style = MaterialTheme.typography.titleMedium)
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    Text("양호 ${summary.merit}점", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Text("과실 ${summary.demerit}점", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text("양호 ${ConductPointCalculator.format(summary.merit)}점", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text("과실 ${ConductPointCalculator.format(summary.demerit)}점", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 }
                 val net = summary.net
                 Text(
-                    "합계 " + (if (net > 0) "+" else if (net < 0) "−" else "") + "${kotlin.math.abs(net)}점",
+                    "합계 " + (if (net > 0) "+" else if (net < 0) "−" else "") + "${ConductPointCalculator.format(net)}점",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -86,7 +86,7 @@ fun ConductPointTab(
                 val sign = if (record.kind == ConductPointKind.MERIT) "+" else "−"
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "${record.date} · ${record.kind.label()} · $sign${record.points}점 · ${record.reason}" +
+                        "${record.date} · ${record.kind.label()} · $sign${ConductPointCalculator.format(record.centiPoints)}점 · ${record.reason}" +
                             (record.memo?.let { " ($it)" } ?: ""),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
@@ -116,7 +116,7 @@ fun ConductPointTab(
             AlertDialog(
                 onDismissRequest = { toDelete = null },
                 title = { Text("점수 기록을 삭제할까요?") },
-                text = { Text("${record.date} · ${record.kind.label()} ${record.points}점 · ${record.reason} 기록을 지웁니다.") },
+                text = { Text("${record.date} · ${record.kind.label()} ${ConductPointCalculator.format(record.centiPoints)}점 · ${record.reason} 기록을 지웁니다.") },
                 confirmButton = { Button(onClick = { onDelete(record); toDelete = null }) { Text("삭제") } },
                 dismissButton = { Button(onClick = { toDelete = null }) { Text("취소") } },
             )
@@ -126,14 +126,14 @@ fun ConductPointTab(
 
 @Composable
 private fun ConductPointForm(
-    onSubmit: (date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) -> Unit,
+    onSubmit: (date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) -> Unit,
     initial: ConductPoint? = null,
     submitText: String = "저장",
     onCancel: (() -> Unit)? = null,
 ) {
     var date by remember { mutableStateOf<LocalDate?>(initial?.date ?: AppClock.today()) }
     var kind by remember { mutableStateOf(initial?.kind ?: ConductPointKind.MERIT) }
-    var pointsText by remember { mutableStateOf(initial?.points?.toString().orEmpty()) }
+    var pointsText by remember { mutableStateOf(initial?.centiPoints?.let(ConductPointCalculator::format).orEmpty()) }
     var reason by remember { mutableStateOf(initial?.reason.orEmpty()) }
     var memo by remember { mutableStateOf(initial?.memo.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -147,9 +147,9 @@ private fun ConductPointForm(
         }
         OutlinedTextField(
             value = pointsText,
-            onValueChange = { pointsText = it.filter(Char::isDigit).take(3) },
-            label = { Text("점수") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            onValueChange = { pointsText = it.filter { c -> c.isDigit() || c == '.' }.take(6) },
+            label = { Text("점수 (예: 0.25)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -176,7 +176,7 @@ private fun ConductPointForm(
                     input.error != null -> error = input.error
                     else -> {
                         error = null
-                        onSubmit(d, kind, input.points!!, input.reason, memo.trim().ifBlank { null })
+                        onSubmit(d, kind, input.centiPoints!!, input.reason, memo.trim().ifBlank { null })
                     }
                 }
             }) { Text(submitText) }

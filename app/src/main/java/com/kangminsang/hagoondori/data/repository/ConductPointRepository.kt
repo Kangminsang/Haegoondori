@@ -20,8 +20,8 @@ class ConductPointRepository @Inject constructor(
     fun observeAll(): Flow<List<ConductPoint>> =
         dao.observeAll().map { list -> list.map { it.toCore() } }
 
-    suspend fun add(date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?): ConductPoint {
-        val record = ConductPoint(IdGenerator.newId(), date, kind, points, reason, memo)
+    suspend fun add(date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?): ConductPoint {
+        val record = ConductPoint(IdGenerator.newId(), date, kind, centiPoints, reason, memo)
         dao.upsert(record.toEntity())
         return record
     }

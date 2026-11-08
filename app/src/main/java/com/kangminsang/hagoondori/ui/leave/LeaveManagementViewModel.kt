@@ -248,13 +248,13 @@ class LeaveManagementViewModel @Inject constructor(
 
     // ---- 점수 ----
 
-    fun addConductPoint(date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) {
-        viewModelScope.launch { conductPointRepository.add(date, kind, points, reason, memo) }
+    fun addConductPoint(date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) {
+        viewModelScope.launch { conductPointRepository.add(date, kind, centiPoints, reason, memo) }
     }
 
-    fun updateConductPoint(record: ConductPoint, date: LocalDate, kind: ConductPointKind, points: Int, reason: String, memo: String?) {
+    fun updateConductPoint(record: ConductPoint, date: LocalDate, kind: ConductPointKind, centiPoints: Int, reason: String, memo: String?) {
         viewModelScope.launch {
-            conductPointRepository.update(record.copy(date = date, kind = kind, points = points, reason = reason, memo = memo))
+            conductPointRepository.update(record.copy(date = date, kind = kind, centiPoints = centiPoints, reason = reason, memo = memo))
         }
     }
 
