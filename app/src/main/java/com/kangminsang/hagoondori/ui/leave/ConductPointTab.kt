@@ -196,7 +196,7 @@ fun ConductPointTab(
                 val sign = if (record.kind == ConductPointKind.MERIT) "+" else "−"
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "${record.date} · ${record.kindLabel()} · $sign${ConductPointCalculator.format(record.centiPoints)}점 · ${record.reason}" +
+                        "${record.date} · ${record.kindLabel()} · $sign${ConductPointCalculator.format(record.centiPoints)}점" + record.reasonSuffix() +
                             (record.memo?.let { " ($it)" } ?: ""),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
@@ -254,7 +254,7 @@ fun ConductPointTab(
             AlertDialog(
                 onDismissRequest = { toDelete = null },
                 title = { Text("점수 기록을 삭제할까요?") },
-                text = { Text("${record.date} · ${record.kindLabel()} ${ConductPointCalculator.format(record.centiPoints)}점 · ${record.reason} 기록을 지웁니다.") },
+                text = { Text("${record.date} · ${record.kindLabel()} ${ConductPointCalculator.format(record.centiPoints)}점${record.reasonSuffix()} 기록을 지웁니다.") },
                 confirmButton = { Button(onClick = { onDelete(record); toDelete = null }) { Text("삭제") } },
                 dismissButton = { Button(onClick = { toDelete = null }) { Text("취소") } },
             )
@@ -271,6 +271,9 @@ private fun ConductPoint.kindLabel() = overtime?.let {
     }
     "초과근무(${it.dayLabel()}$times$hours)"
 } ?: kind.label()
+
+/** 목록에 붙일 " · 사유". 자동으로 채운 초과근무 사유는 근무 정보와 겹치므로 뺀다. */
+private fun ConductPoint.reasonSuffix() = if (ConductPointCalculator.isAutoOvertimeReason(this)) "" else " · $reason"
 
 private fun ConductConversionType.unit() = if (this == ConductConversionType.REWARD_LEAVE) "일" else "회"
 
@@ -356,7 +359,8 @@ private fun ConductPointForm(
     val legacyHours = initial?.overtime?.takeIf { it.startTime == null }?.tenthHours
     var overrideHoliday by remember { mutableStateOf(initial?.overtime?.onHoliday) }
     var pointsText by remember { mutableStateOf(initial?.centiPoints?.let(ConductPointCalculator::format).orEmpty()) }
-    var reason by remember { mutableStateOf(initial?.reason.orEmpty()) }
+    // 자동으로 채웠던 초과근무 사유는 비워 두고 연다. 시각을 바꾸면 새 시각으로 다시 채워진다.
+    var reason by remember { mutableStateOf(initial?.takeUnless(ConductPointCalculator::isAutoOvertimeReason)?.reason.orEmpty()) }
     var memo by remember { mutableStateOf(initial?.memo.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -432,17 +436,14 @@ private fun ConductPointForm(
                 if (kind == ConductPointKind.MERIT) {
                     FilterChip(
                         selected = isOvertime,
-                        onClick = {
-                            isOvertime = !isOvertime
-                            if (isOvertime) reason = ""
-                        },
+                        onClick = { isOvertime = !isOvertime },
                         label = { Text(OVERTIME_CHIP) },
                     )
                 }
                 recentReasons.forEach { r ->
                     FilterChip(
-                        selected = !isOvertime && reason.trim() == r,
-                        onClick = { isOvertime = false; reason = r },
+                        selected = reason.trim() == r,
+                        onClick = { reason = if (reason.trim() == r) "" else r },
                         label = { Text(r) },
                     )
                 }

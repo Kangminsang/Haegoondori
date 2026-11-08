@@ -85,11 +85,11 @@ object ConductPointCalculator {
 
     /**
      * [kind]로 이전에 쓴 사유를 최근 사용 순으로 최대 [limit]개 돌려준다. 공백을 정리해 중복을 없애고,
-     * 초과근무 기록의 사유는 뺀다. 날짜가 같으면 [records]에서 뒤에 있는(나중에 추가된) 것이 먼저다.
+     * 초과근무 기록도 사용자가 직접 적은 사유는 넣고, 비워 둬서 자동으로 채운 사유("평일 초과근무 …")는 뺀다. 날짜가 같으면 [records]에서 뒤에 있는(나중에 추가된) 것이 먼저다.
      */
     fun recentReasons(records: List<ConductPoint>, kind: ConductPointKind, limit: Int = DEFAULT_RECENT_REASON_LIMIT): List<String> =
         records.withIndex()
-            .filter { it.value.kind == kind && it.value.overtime == null }
+            .filter { it.value.kind == kind && !isAutoOvertimeReason(it.value) }
             .sortedWith(compareByDescending<IndexedValue<ConductPoint>> { it.value.date }.thenByDescending { it.index })
             .map { it.value.reason.trim() }
             .filter { it.isNotEmpty() }
@@ -220,6 +220,16 @@ object ConductPointCalculator {
     /** 초과근무 사유를 비웠을 때 쓰는 문구: "평일 초과근무 1.5시간". */
     fun overtimeReason(tenthHours: Int, onHoliday: Boolean): String =
         (if (onHoliday) "휴일" else "평일") + " 초과근무 ${formatHours(tenthHours)}시간"
+
+    /** 초과근무 기록의 사유가 사유를 비웠을 때 자동으로 채운 문구인지. 그런 사유는 근무 정보와 겹치므로 따로 보여주지 않는다. */
+    fun isAutoOvertimeReason(record: ConductPoint): Boolean {
+        val o = record.overtime ?: return false
+        val r = record.reason.trim()
+        if (r == overtimeReason(o.tenthHours, o.onHoliday)) return true
+        val start = o.startTime
+        val end = o.endTime
+        return start != null && end != null && r == overtimeReason(o.onHoliday, start, end)
+    }
 
     /** 시각이 있는 초과근무의 사유 문구: "평일 초과근무 18:00~20:30". */
     fun overtimeReason(onHoliday: Boolean, start: LocalTime, end: LocalTime): String =

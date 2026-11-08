@@ -227,7 +227,7 @@ class ConductPointCalculatorTest {
     }
 
     @Test
-    fun `recentReasons returns distinct trimmed reasons, latest first, excluding overtime and other kind`() {
+    fun `recentReasons returns distinct trimmed reasons, latest first, excluding auto overtime reasons and other kind`() {
         val d = ConductPointKind.DEMERIT
         val m = ConductPointKind.MERIT
         val list = listOf(
@@ -237,8 +237,9 @@ class ConductPointCalculatorTest {
             ConductPoint("d", LocalDate(2026, 9, 9), d, 100, "지각"),
             ConductPoint("e", LocalDate(2026, 9, 10), m, 50, "평일 초과근무 1시간", overtime = Overtime(10, false)),
             ConductPoint("f", LocalDate(2026, 8, 1), m, 100, "봉사"),
+            ConductPoint("g", LocalDate(2026, 8, 20), m, 200, "당직 지원", overtime = Overtime(20, true)),
         )
-        assertEquals(listOf("표창", "선행", "봉사"), ConductPointCalculator.recentReasons(list, m))
+        assertEquals(listOf("표창", "선행", "당직 지원", "봉사"), ConductPointCalculator.recentReasons(list, m))
         assertEquals(listOf("지각"), ConductPointCalculator.recentReasons(list, d))
     }
 
@@ -296,5 +297,17 @@ class ConductPointCalculatorTest {
         assertEquals(end, rec.overtime!!.endTime)
         assertThrows(IllegalArgumentException::class.java) { Overtime(24, false, start, end) }
         assertThrows(IllegalArgumentException::class.java) { Overtime(25, false, start, null) }
+    }
+
+    @Test
+    fun `isAutoOvertimeReason detects only the auto-filled overtime reason`() {
+        val m = ConductPointKind.MERIT
+        val start = LocalTime(18, 0)
+        val end = LocalTime(20, 30)
+        val timed = Overtime(25, false, start, end)
+        assertTrue(ConductPointCalculator.isAutoOvertimeReason(ConductPoint("a", LocalDate(2026, 9, 1), m, 125, "평일 초과근무 18:00~20:30", overtime = timed)))
+        assertTrue(ConductPointCalculator.isAutoOvertimeReason(ConductPoint("b", LocalDate(2026, 9, 1), m, 50, "평일 초과근무 1시간", overtime = Overtime(10, false))))
+        assertFalse(ConductPointCalculator.isAutoOvertimeReason(ConductPoint("c", LocalDate(2026, 9, 1), m, 125, "당직 지원", overtime = timed)))
+        assertFalse(ConductPointCalculator.isAutoOvertimeReason(ConductPoint("d", LocalDate(2026, 9, 1), m, 100, "평일 초과근무 1시간")))
     }
 }
