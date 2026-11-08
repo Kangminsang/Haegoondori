@@ -154,6 +154,9 @@ abstract class HagoondoriDatabase : RoomDatabase() {
                     "CREATE TABLE IF NOT EXISTS `conduct_conversion` (`id` TEXT NOT NULL, `meetingDate` INTEGER NOT NULL, " +
                         "`type` TEXT NOT NULL, `count` INTEGER NOT NULL, `memo` TEXT, PRIMARY KEY(`id`))",
                 )
+                // 초과근무 시작·끝 시각. v11은 배포 전이라 같은 버전에 이어 붙인다.
+                db.execSQL("ALTER TABLE `conduct_point` ADD COLUMN `overtimeStartTime` TEXT")
+                db.execSQL("ALTER TABLE `conduct_point` ADD COLUMN `overtimeEndTime` TEXT")
             }
         }
 

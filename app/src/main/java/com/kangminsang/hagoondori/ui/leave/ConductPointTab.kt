@@ -40,8 +40,10 @@ import com.kangminsang.hagoondori.core.model.Overtime
 import com.kangminsang.hagoondori.ui.common.Button
 import com.kangminsang.hagoondori.ui.common.Card
 import com.kangminsang.hagoondori.ui.common.DateTextField
+import com.kangminsang.hagoondori.ui.common.TimeTextField
 import com.kangminsang.hagoondori.util.AppClock
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 
 private fun ConductPointKind.label() = if (this == ConductPointKind.MERIT) "양호" else "과실"
 
@@ -260,7 +262,15 @@ fun ConductPointTab(
     }
 }
 
-private fun ConductPoint.kindLabel() = overtime?.let { "초과근무(${it.dayLabel()} ${ConductPointCalculator.formatHours(it.tenthHours)}시간)" } ?: kind.label()
+private fun ConductPoint.kindLabel() = overtime?.let {
+    val hours = "${ConductPointCalculator.formatHours(it.tenthHours)}시간"
+    val times = if (it.startTime != null && it.endTime != null) {
+        " ${ConductPointCalculator.formatTime(it.startTime!!)}~${ConductPointCalculator.formatTime(it.endTime!!)}, "
+    } else {
+        " "
+    }
+    "초과근무(${it.dayLabel()}$times$hours)"
+} ?: kind.label()
 
 private fun ConductConversionType.unit() = if (this == ConductConversionType.REWARD_LEAVE) "일" else "회"
 
@@ -340,7 +350,10 @@ private fun ConductPointForm(
     var date by remember { mutableStateOf<LocalDate?>(initial?.date ?: AppClock.today()) }
     var kind by remember { mutableStateOf(initial?.kind ?: ConductPointKind.MERIT) }
     var isOvertime by remember { mutableStateOf(initial?.overtime != null) }
-    var hoursText by remember { mutableStateOf(initial?.overtime?.let { ConductPointCalculator.formatHours(it.tenthHours) }.orEmpty()) }
+    var startTime by remember { mutableStateOf(initial?.overtime?.startTime) }
+    var endTime by remember { mutableStateOf(initial?.overtime?.endTime) }
+    // 시각 없이 저장된 옛 기록: 시각을 새로 입력하도록 옛 시간을 안내만 한다.
+    val legacyHours = initial?.overtime?.takeIf { it.startTime == null }?.tenthHours
     var overrideHoliday by remember { mutableStateOf(initial?.overtime?.onHoliday) }
     var pointsText by remember { mutableStateOf(initial?.centiPoints?.let(ConductPointCalculator::format).orEmpty()) }
     var reason by remember { mutableStateOf(initial?.reason.orEmpty()) }
@@ -351,7 +364,8 @@ private fun ConductPointForm(
     val autoHoliday = currentDate?.let { ConductPointCalculator.isHolidayOvertime(it, holidays) } ?: false
     val onHoliday = overrideHoliday ?: autoHoliday
     val recentReasons = ConductPointCalculator.recentReasons(records, kind)
-    val parsedHours = ConductPointCalculator.validateOvertimeHours(hoursText).tenthHours
+    val timesInput = ConductPointCalculator.validateOvertimeTimes(startTime, endTime)
+    val parsedHours = timesInput.tenthHours
 
     Column {
         DateTextField("날짜", date, { date = it; overrideHoliday = null }, modifier = Modifier.fillMaxWidth())
@@ -361,14 +375,24 @@ private fun ConductPointForm(
             }
         }
         if (isOvertime) {
-            OutlinedTextField(
-                value = hoursText,
-                onValueChange = { hoursText = it.filter { c -> c.isDigit() || c == '.' }.take(4) },
-                label = { Text("시간 (예: 1.5)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                TimeTextField("시작", startTime, { startTime = it }, modifier = Modifier.weight(1f))
+                TimeTextField("끝", endTime, { endTime = it }, modifier = Modifier.weight(1f))
+            }
+            if (legacyHours != null && startTime == null && endTime == null) {
+                Text(
+                    "이전 기록: ${ConductPointCalculator.formatHours(legacyHours)}시간 (시작·끝 시각을 다시 입력해 주세요)",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            val timesError = timesInput.error
+            if (startTime != null && endTime != null && timesError != null) {
+                Text(timesError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (timesInput.crossesMidnight && endTime != null) {
+                Text("다음 날 ${ConductPointCalculator.formatTime(endTime!!)}까지", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+            }
             Text(
                 "자동 판정: ${if (autoHoliday) "휴일" else "평일"} (직접 바꾸려면 아래에서 선택)",
                 style = MaterialTheme.typography.bodySmall,
@@ -381,7 +405,7 @@ private fun ConductPointForm(
             }
             parsedHours?.let {
                 Text(
-                    "→ 양호 ${ConductPointCalculator.format(ConductPointCalculator.overtimeCentiPoints(it, onHoliday))}점",
+                    "${ConductPointCalculator.formatHours(it)}시간 (${if (onHoliday) "휴일" else "평일"}) → 양호 ${ConductPointCalculator.format(ConductPointCalculator.overtimeCentiPoints(it, onHoliday))}점",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -435,12 +459,13 @@ private fun ConductPointForm(
             Button(onClick = {
                 val d = date
                 if (isOvertime) {
-                    val hours = ConductPointCalculator.validateOvertimeHours(hoursText)
-                    val tenth = hours.tenthHours
+                    val tenth = timesInput.tenthHours
+                    val st = startTime
+                    val en = endTime
                     val trimmedReason = reason.trim()
                     error = when {
                         d == null -> "날짜를 입력해 주세요."
-                        tenth == null -> hours.error
+                        tenth == null || st == null || en == null -> timesInput.error
                         trimmedReason.length > ConductPointCalculator.MAX_REASON_LENGTH ->
                             "사유는 ${ConductPointCalculator.MAX_REASON_LENGTH}자 이하로 입력해 주세요."
                         memo.trim().length > ConductPointCalculator.MAX_MEMO_LENGTH ->
@@ -448,8 +473,8 @@ private fun ConductPointForm(
                         else -> {
                             onSubmit(
                                 d, ConductPointKind.MERIT, ConductPointCalculator.overtimeCentiPoints(tenth, onHoliday),
-                                trimmedReason.ifEmpty { ConductPointCalculator.overtimeReason(tenth, onHoliday) },
-                                memo.trim().ifBlank { null }, Overtime(tenth, onHoliday),
+                                trimmedReason.ifEmpty { ConductPointCalculator.overtimeReason(onHoliday, st, en) },
+                                memo.trim().ifBlank { null }, Overtime(tenth, onHoliday, st, en),
                             )
                             null
                         }

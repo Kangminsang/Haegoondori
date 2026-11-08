@@ -7,6 +7,7 @@ import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.PassType
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.math.abs
 
 /** 양호·과실 점수 합계(0.01점 단위). [net] = 양호 − 과실. */
@@ -19,6 +20,9 @@ data class ConductPointInput(val centiPoints: Int?, val reason: String, val erro
 
 /** 초과근무 시간 입력 검증 결과. [error]가 null이면 통과, [tenthHours]는 0.1시간 단위 정수다. */
 data class OvertimeHoursInput(val tenthHours: Int?, val error: String?)
+
+/** 초과근무 시각 입력 검증 결과. [error]가 null이면 통과, [crossesMidnight]는 끝 시각이 다음 날인지다. */
+data class OvertimeTimesInput(val tenthHours: Int?, val crossesMidnight: Boolean, val error: String?)
 
 /** 위원회 결과 일수·횟수 입력 검증 결과. [error]가 null이면 통과. */
 data class ConversionCountInput(val count: Int?, val error: String?)
@@ -181,6 +185,34 @@ object ConductPointCalculator {
         }
     }
 
+    /** "08:05" 형태의 시각 표기. */
+    fun formatTime(time: LocalTime): String = "${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}"
+
+    /**
+     * 시작~끝 시각의 근무 시간을 0.1시간(6분) 단위로 센다. 끝이 시작보다 이르면 자정을 넘긴 것으로 보고 다음 날로 계산한다.
+     * 6분 미만의 나머지는 버린다(내림): 18:00~19:20(80분) = 1.3시간. 시작과 끝이 같으면 0을 돌려준다(검증에서 오류).
+     */
+    fun overtimeTenthHours(start: LocalTime, end: LocalTime): Int {
+        val s = start.hour * 60 + start.minute
+        val e = end.hour * 60 + end.minute
+        if (s == e) return 0
+        val minutes = if (e > s) e - s else e + 24 * 60 - s
+        return minutes / 6
+    }
+
+    /** 시작·끝 시각 입력을 검증한다. 같은 시각이거나 6분 미만이면 오류. */
+    fun validateOvertimeTimes(start: LocalTime?, end: LocalTime?): OvertimeTimesInput {
+        if (start == null || end == null) return OvertimeTimesInput(null, false, "시작과 끝 시각을 입력해 주세요.")
+        if (start == end) return OvertimeTimesInput(null, false, "시작과 끝 시각이 같아요.")
+        val crosses = end < start
+        val tenth = overtimeTenthHours(start, end)
+        return if (tenth < MIN_OVERTIME_TENTH_HOURS) {
+            OvertimeTimesInput(null, crosses, "6분 이상이어야 해요.")
+        } else {
+            OvertimeTimesInput(tenth, crosses, null)
+        }
+    }
+
     /** 날짜가 휴일(주말·공휴일)이면 true. 초과근무 평일/휴일 자동 판정에 쓴다. */
     fun isHolidayOvertime(date: LocalDate, holidays: List<Holiday>): Boolean =
         PassCalculator.classifyType(date, holidays) == PassType.HOLIDAY
@@ -188,6 +220,10 @@ object ConductPointCalculator {
     /** 초과근무 사유를 비웠을 때 쓰는 문구: "평일 초과근무 1.5시간". */
     fun overtimeReason(tenthHours: Int, onHoliday: Boolean): String =
         (if (onHoliday) "휴일" else "평일") + " 초과근무 ${formatHours(tenthHours)}시간"
+
+    /** 시각이 있는 초과근무의 사유 문구: "평일 초과근무 18:00~20:30". */
+    fun overtimeReason(onHoliday: Boolean, start: LocalTime, end: LocalTime): String =
+        (if (onHoliday) "휴일" else "평일") + " 초과근무 ${formatTime(start)}~${formatTime(end)}"
 
     /** 점수 합계와 지금까지의 위원회 결과 기록으로 전환 현황을 계산한다. */
     fun conversion(

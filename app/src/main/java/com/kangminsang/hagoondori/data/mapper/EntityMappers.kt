@@ -95,10 +95,10 @@ fun PassRecord.toEntity(): PassRecordEntity = PassRecordEntity(id, date, type, m
 
 fun ConductPointEntity.toCore(): ConductPoint = ConductPoint(
     id, date, kind, centiPoints, reason, memo,
-    overtime = if (overtimeTenthHours != null && overtimeOnHoliday != null) Overtime(overtimeTenthHours, overtimeOnHoliday) else null,
+    overtime = if (overtimeTenthHours != null && overtimeOnHoliday != null) Overtime(overtimeTenthHours, overtimeOnHoliday, overtimeStartTime, overtimeEndTime) else null,
 )
 fun ConductPoint.toEntity(): ConductPointEntity = ConductPointEntity(
-    id, date, kind, centiPoints, reason, memo, overtime?.tenthHours, overtime?.onHoliday,
+    id, date, kind, centiPoints, reason, memo, overtime?.tenthHours, overtime?.onHoliday, overtime?.startTime, overtime?.endTime,
 )
 
 fun ConductConversionEntity.toCore(): ConductConversionRecord = ConductConversionRecord(id, meetingDate, type, count, memo)

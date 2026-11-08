@@ -7,6 +7,7 @@ import com.kangminsang.hagoondori.core.model.ConductPointKind
 import com.kangminsang.hagoondori.core.model.Holiday
 import com.kangminsang.hagoondori.core.model.Overtime
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -260,5 +261,40 @@ class ConductPointCalculatorTest {
             assertNull(r.count, bad)
             assertEquals("1~3회로 입력해 주세요.", r.error, bad)
         }
+    }
+
+    @Test
+    fun `overtime hours from start and end times`() {
+        fun h(a: LocalTime, b: LocalTime) = ConductPointCalculator.overtimeTenthHours(a, b)
+        assertEquals(25, h(LocalTime(18, 0), LocalTime(20, 30)))
+        assertEquals(30, h(LocalTime(22, 0), LocalTime(1, 0)))
+        assertEquals(13, h(LocalTime(18, 0), LocalTime(19, 20)))
+        assertEquals(0, h(LocalTime(18, 0), LocalTime(18, 5)))
+        assertEquals(0, h(LocalTime(18, 0), LocalTime(18, 0)))
+    }
+
+    @Test
+    fun `overtime times validation`() {
+        val ok = ConductPointCalculator.validateOvertimeTimes(LocalTime(22, 0), LocalTime(1, 0))
+        assertEquals(30, ok.tenthHours)
+        assertTrue(ok.crossesMidnight)
+        assertFalse(ConductPointCalculator.validateOvertimeTimes(LocalTime(18, 0), LocalTime(20, 30)).crossesMidnight)
+        assertEquals("시작과 끝 시각이 같아요.", ConductPointCalculator.validateOvertimeTimes(LocalTime(18, 0), LocalTime(18, 0)).error)
+        assertEquals("6분 이상이어야 해요.", ConductPointCalculator.validateOvertimeTimes(LocalTime(18, 0), LocalTime(18, 5)).error)
+        assertNotNull(ConductPointCalculator.validateOvertimeTimes(null, LocalTime(18, 5)).error)
+    }
+
+    @Test
+    fun `overtime points and reason from times`() {
+        val start = LocalTime(18, 0)
+        val end = LocalTime(20, 30)
+        val tenth = ConductPointCalculator.overtimeTenthHours(start, end)
+        assertEquals(125, ConductPointCalculator.overtimeCentiPoints(tenth, false))
+        assertEquals(250, ConductPointCalculator.overtimeCentiPoints(tenth, true))
+        assertEquals("평일 초과근무 18:00~20:30", ConductPointCalculator.overtimeReason(false, start, end))
+        val rec = ConductPoint("t1", LocalDate(2026, 11, 3), ConductPointKind.MERIT, 125, "x", overtime = Overtime(25, false, start, end))
+        assertEquals(end, rec.overtime!!.endTime)
+        assertThrows(IllegalArgumentException::class.java) { Overtime(24, false, start, end) }
+        assertThrows(IllegalArgumentException::class.java) { Overtime(25, false, start, null) }
     }
 }

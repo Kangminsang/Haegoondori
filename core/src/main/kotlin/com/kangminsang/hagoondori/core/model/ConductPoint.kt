@@ -2,6 +2,7 @@ package com.kangminsang.hagoondori.core.model
 
 import com.kangminsang.hagoondori.core.calc.ConductPointCalculator
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 
 /** 점수 종류: 양호(가점) / 과실(감점). */
 enum class ConductPointKind {
@@ -12,10 +13,23 @@ enum class ConductPointKind {
 /**
  * 초과근무로 받은 양호의 근거. [tenthHours]는 근무 시간을 0.1시간 단위 정수로 둔 값(1.5시간 = 15),
  * [onHoliday]가 true면 휴일 근무다. 점수는 [com.kangminsang.hagoondori.core.calc.ConductPointCalculator.overtimeCentiPoints]로 정해진다.
+ * [startTime]·[endTime]은 시작·끝 시각이며 함께 있거나 함께 없다(시각 입력 이전의 옛 기록은 없음).
+ * 있으면 [tenthHours]는 두 시각에서 계산한 값과 같아야 한다.
  */
-data class Overtime(val tenthHours: Int, val onHoliday: Boolean) {
+data class Overtime(
+    val tenthHours: Int,
+    val onHoliday: Boolean,
+    val startTime: LocalTime? = null,
+    val endTime: LocalTime? = null,
+) {
     init {
         require(tenthHours in 1..240) { "초과근무 시간은 0.1~24시간이어야 한다: $tenthHours" }
+        require((startTime == null) == (endTime == null)) { "시작·끝 시각은 함께 있어야 한다" }
+        if (startTime != null && endTime != null) {
+            require(tenthHours == ConductPointCalculator.overtimeTenthHours(startTime, endTime)) {
+                "초과근무 시간이 시각과 맞지 않는다: $tenthHours"
+            }
+        }
     }
 }
 
