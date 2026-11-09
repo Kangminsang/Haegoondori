@@ -10,6 +10,9 @@ import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.OvernightRecord
+import com.kangminsang.hagoondori.core.model.ConductConversionRecord
+import com.kangminsang.hagoondori.core.model.ConductPoint
+import com.kangminsang.hagoondori.core.model.Overtime
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.model.PromotionDates
 import com.kangminsang.hagoondori.core.model.SyncChangeLogEntry
@@ -25,6 +28,8 @@ import com.kangminsang.hagoondori.data.local.entity.LeaveTypeEntity
 import com.kangminsang.hagoondori.data.local.entity.LeaveUsageEntity
 import com.kangminsang.hagoondori.data.local.entity.OvernightForfeitureEntity
 import com.kangminsang.hagoondori.data.local.entity.OvernightRecordEntity
+import com.kangminsang.hagoondori.data.local.entity.ConductConversionEntity
+import com.kangminsang.hagoondori.data.local.entity.ConductPointEntity
 import com.kangminsang.hagoondori.data.local.entity.PassRecordEntity
 import com.kangminsang.hagoondori.data.local.entity.SyncChangeLogEntity
 import com.kangminsang.hagoondori.data.local.entity.SyncStateEntity
@@ -87,6 +92,17 @@ fun OvernightForfeiture.toEntity(): OvernightForfeitureEntity =
 
 fun PassRecordEntity.toCore(): PassRecord = PassRecord(id, date, type, memo)
 fun PassRecord.toEntity(): PassRecordEntity = PassRecordEntity(id, date, type, memo)
+
+fun ConductPointEntity.toCore(): ConductPoint = ConductPoint(
+    id, date, kind, centiPoints, reason, memo,
+    overtime = if (overtimeTenthHours != null && overtimeOnHoliday != null) Overtime(overtimeTenthHours, overtimeOnHoliday, overtimeStartTime, overtimeEndTime) else null,
+)
+fun ConductPoint.toEntity(): ConductPointEntity = ConductPointEntity(
+    id, date, kind, centiPoints, reason, memo, overtime?.tenthHours, overtime?.onHoliday, overtime?.startTime, overtime?.endTime,
+)
+
+fun ConductConversionEntity.toCore(): ConductConversionRecord = ConductConversionRecord(id, meetingDate, type, count, memo)
+fun ConductConversionRecord.toEntity(): ConductConversionEntity = ConductConversionEntity(id, meetingDate, type, count, memo)
 
 fun EventEntity.toCore(): Event = Event(id, title, startDate, endDate, isImportant, memo)
 fun Event.toEntity(): EventEntity = EventEntity(id, title, startDate, endDate, isImportant, memo)

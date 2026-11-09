@@ -14,13 +14,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-private val TAB_TITLES = listOf("휴가", "전투휴무", "외박", "외출")
+private val TAB_TITLES = listOf("휴가", "전투휴무", "외박", "외출", "점수")
 
 /**
- * ③ 출타 관리 (스펙 5.1/5.2절, F7~F14) - 휴가/전투휴무/외박/외출 4개 탭.
+ * ③ 출타 관리 (스펙 5.1/5.2절, F7~F14) - 휴가/전투휴무/외박/외출/점수 5개 탭.
  */
 @Composable
 fun LeaveManagementScreen(
@@ -37,8 +38,16 @@ fun LeaveManagementScreen(
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        text = { Text(title, style = MaterialTheme.typography.labelLarge) },
-                    )
+                    ) {
+                        // 탭이 5개라 기본 Tab의 좌우 여백으로는 "전투휴무"가 두 줄로 꺾인다. 여백 없이 한 줄로 둔다.
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(vertical = 14.dp),
+                        )
+                    }
                 }
             }
 
@@ -73,6 +82,15 @@ fun LeaveManagementScreen(
                 3 -> PassTab(
                     uiState = uiState,
                     onAddRecord = viewModel::addPassRecord,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                4 -> ConductPointTab(
+                    uiState = uiState,
+                    onAdd = viewModel::addConductPoint,
+                    onUpdate = viewModel::updateConductPoint,
+                    onDelete = viewModel::deleteConductPoint,
+                    onAddConversion = viewModel::addConductConversion,
+                    onDeleteConversion = viewModel::deleteConductConversion,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

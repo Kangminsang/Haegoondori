@@ -3,6 +3,8 @@ package com.kangminsang.hagoondori.di
 import android.content.Context
 import com.kangminsang.hagoondori.data.local.HagoondoriDatabase
 import com.kangminsang.hagoondori.data.local.dao.CombatRestDao
+import com.kangminsang.hagoondori.data.local.dao.ConductConversionDao
+import com.kangminsang.hagoondori.data.local.dao.ConductPointDao
 import com.kangminsang.hagoondori.data.local.dao.DutyDao
 import com.kangminsang.hagoondori.data.local.dao.EventDao
 import com.kangminsang.hagoondori.data.local.dao.HolidayDao
@@ -46,6 +48,12 @@ object DatabaseModule {
 
     @Provides
     fun providePassDao(db: HagoondoriDatabase): PassDao = db.passDao()
+
+    @Provides
+    fun provideConductPointDao(db: HagoondoriDatabase): ConductPointDao = db.conductPointDao()
+
+    @Provides
+    fun provideConductConversionDao(db: HagoondoriDatabase): ConductConversionDao = db.conductConversionDao()
 
     @Provides
     fun provideEventDao(db: HagoondoriDatabase): EventDao = db.eventDao()
