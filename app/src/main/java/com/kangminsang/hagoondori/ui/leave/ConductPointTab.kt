@@ -1,9 +1,17 @@
 package com.kangminsang.hagoondori.ui.leave
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +57,10 @@ private fun ConductPointKind.label() = if (this == ConductPointKind.MERIT) "양�
 private fun Overtime.dayLabel() = if (onHoliday) "휴일" else "평일"
 
 private const val OVERTIME_CHIP = "초과근무"
+
+/** 사유 검색에 쓰는 이전 사유 개수와, 목록에 한 번에 보여줄 개수. */
+private const val REASON_SEARCH_POOL = 50
+private const val REASON_SEARCH_LIMIT = 6
 
 /**
  * 점수 탭: 양호·과실 점수 합계와 기록, 초과근무 양호 기록, 점수 전환 현황.
@@ -367,7 +378,7 @@ private fun ConductPointForm(
     val currentDate = date
     val autoHoliday = currentDate?.let { ConductPointCalculator.isHolidayOvertime(it, holidays) } ?: false
     val onHoliday = overrideHoliday ?: autoHoliday
-    val recentReasons = ConductPointCalculator.recentReasons(records, kind)
+    val recentReasons = ConductPointCalculator.recentReasons(records, kind, limit = REASON_SEARCH_POOL)
     val timesInput = ConductPointCalculator.validateOvertimeTimes(startTime, endTime)
     val parsedHours = timesInput.tenthHours
 
@@ -423,32 +434,15 @@ private fun ConductPointForm(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        OutlinedTextField(
-            value = reason,
-            onValueChange = { reason = it },
-            label = { Text(if (isOvertime) "사유(선택)" else "사유") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ReasonSearchField(
+            reason = reason,
+            onReasonChange = { reason = it },
+            label = if (isOvertime) "사유(선택)" else "사유",
+            recentReasons = recentReasons,
+            showOvertime = kind == ConductPointKind.MERIT,
+            isOvertime = isOvertime,
+            onToggleOvertime = { isOvertime = !isOvertime },
         )
-        if (kind == ConductPointKind.MERIT || recentReasons.isNotEmpty()) {
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                if (kind == ConductPointKind.MERIT) {
-                    FilterChip(
-                        selected = isOvertime,
-                        onClick = { isOvertime = !isOvertime },
-                        label = { Text(OVERTIME_CHIP) },
-                    )
-                }
-                recentReasons.forEach { r ->
-                    FilterChip(
-                        selected = reason.trim() == r,
-                        onClick = { reason = if (reason.trim() == r) "" else r },
-                        label = { Text(r) },
-                    )
-                }
-            }
-        }
         OutlinedTextField(
             value = memo,
             onValueChange = { memo = it },
@@ -496,5 +490,89 @@ private fun ConductPointForm(
                 TextButton(onClick = onCancel) { Text("취소") }
             }
         }
+    }
+}
+
+/**
+ * 검색창처럼 쓰는 사유 입력란. 누르면 아래에 이전 사유가 세로 목록으로 펼쳐지고, 입력한 글자로 걸러진다.
+ * 양호일 때는 목록 맨 위에 "초과근무"가 있어, 사유와 함께 켜고 끌 수 있다. 항목을 고르면 목록이 닫힌다.
+ */
+@Composable
+private fun ReasonSearchField(
+    reason: String,
+    onReasonChange: (String) -> Unit,
+    label: String,
+    recentReasons: List<String>,
+    showOvertime: Boolean,
+    isOvertime: Boolean,
+    onToggleOvertime: () -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+    var focused by remember { mutableStateOf(false) }
+    val query = reason.trim()
+    val matches = recentReasons.filter { query.isEmpty() || it.contains(query, ignoreCase = true) }.take(REASON_SEARCH_LIMIT)
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        OutlinedTextField(
+            value = reason,
+            onValueChange = onReasonChange,
+            label = { Text(label) },
+            placeholder = { Text(if (showOvertime) "이전 사유·초과근무 검색" else "이전 사유 검색") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (reason.isNotEmpty()) {
+                    IconButton(onClick = { onReasonChange("") }) { Icon(Icons.Filled.Close, contentDescription = "사유 지우기") }
+                }
+            },
+            supportingText = if (isOvertime && !focused) ({ Text("초과근무 선택됨") }) else null,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+        )
+        if (focused && (showOvertime || matches.isNotEmpty())) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
+            ) {
+                if (showOvertime) {
+                    ReasonSuggestionRow(
+                        icon = Icons.Filled.Schedule,
+                        text = OVERTIME_CHIP,
+                        selected = isOvertime,
+                        onClick = { onToggleOvertime(); focusManager.clearFocus() },
+                    )
+                }
+                matches.forEachIndexed { index, r ->
+                    if (showOvertime || index > 0) HorizontalDivider()
+                    ReasonSuggestionRow(
+                        icon = Icons.Filled.History,
+                        text = r,
+                        selected = query == r,
+                        onClick = { onReasonChange(r); focusManager.clearFocus() },
+                    )
+                }
+                if (matches.isEmpty() && query.isNotEmpty()) {
+                    HorizontalDivider()
+                    Text(
+                        "일치하는 이전 사유가 없어요. 입력한 그대로 저장돼요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReasonSuggestionRow(icon: ImageVector, text: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 12.dp))
+        Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (selected) Icon(Icons.Filled.Check, contentDescription = "선택됨")
     }
 }
