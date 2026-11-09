@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -37,8 +38,16 @@ fun LeaveManagementScreen(
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        text = { Text(title, style = MaterialTheme.typography.labelLarge) },
-                    )
+                    ) {
+                        // 탭이 5개라 기본 Tab의 좌우 여백으로는 "전투휴무"가 두 줄로 꺾인다. 여백 없이 한 줄로 둔다.
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(vertical = 14.dp),
+                        )
+                    }
                 }
             }
 
