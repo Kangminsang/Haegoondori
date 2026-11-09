@@ -186,7 +186,11 @@ fun CalendarScreen(
                     )
                 } else {
                     Text(
-                        "기간 바깥을 누르면 늘어나고, 처음·끝 날을 누르면 하루씩 줄어듭니다. 안쪽 날을 누르면 가까운 끝이 그날까지 줄어듭니다",
+                        if (plan.brush != null) {
+                            "날짜를 누르면 고른 종류로 바뀝니다. 같은 종류를 다시 누르면 비워지고, 처음·끝 날이면 기간에서 빠집니다. 기간 바깥을 누르면 그 종류로 늘어납니다"
+                        } else {
+                            "종류를 고르고 날짜를 누르면 그 종류로 바뀝니다. 종류를 고르지 않으면 기간 바깥을 눌러 늘리고, 처음·끝 날을 눌러 줄입니다"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 8.dp),
                     )
@@ -194,10 +198,11 @@ fun CalendarScreen(
                         start = plan.start,
                         end = planEnd,
                         rows = plan.rows,
-                        parts = plan.parts,
-                        onChangeDays = viewModel::setPlanDays,
-                        onAutoFill = viewModel::setPlanParts,
-                        onSave = { parts -> viewModel.savePlan(parts) { lastAction = it } },
+                        dayKinds = plan.dayKinds,
+                        brush = plan.brush,
+                        onSelectBrush = viewModel::selectPlanBrush,
+                        onAutoFill = viewModel::autoFillPlan,
+                        onSave = { viewModel.savePlan { lastAction = it } },
                         onCancel = {
                             viewModel.clearPlan()
                             if (plan.editing) mode = CalendarMode.VIEW
@@ -211,7 +216,7 @@ fun CalendarScreen(
                         modifier = Modifier.padding(top = 8.dp),
                     )
                     Text(
-                        "날짜는 행 순서대로 이어집니다. 기간과 겹친 기존 휴가·외박은 이 계획으로 바뀌고, 기간 밖 부분은 남습니다. 수정 중 줄여서 빠진 날의 기록은 지워집니다",
+                        "같은 종류가 이어진 날마다 기록 하나로 저장됩니다. 기간과 겹친 기존 휴가·외박은 이 계획으로 바뀌고, 기간 밖 부분은 남습니다. 수정 중 줄여서 빠진 날의 기록은 지워집니다",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 4.dp),
                     )

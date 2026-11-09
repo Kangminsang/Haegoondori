@@ -8,7 +8,7 @@ import com.kangminsang.hagoondori.core.calc.OutingPeriodCalculator
 import com.kangminsang.hagoondori.core.calc.OvernightScheduleCalculator
 import com.kangminsang.hagoondori.core.calc.PassCalculator
 import com.kangminsang.hagoondori.core.calc.PlanKind
-import com.kangminsang.hagoondori.core.calc.PlanPart
+import com.kangminsang.hagoondori.core.calc.PlanSegment
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.UserProfile
@@ -70,15 +70,17 @@ class CalendarViewModel @Inject constructor(
     private val selectedDate = MutableStateFlow<LocalDate?>(today)
 
     /**
-     * 휴가 계획 모드에서 고른 기간과 배분. 시작일만 고른 동안은 [end]가 null이다.
-     * [parts]는 패널 행 순서(외박 → 휴가 종류)의 일수이고, null이면 아직 기존 기록으로 채우지 않은 것이다.
+     * 휴가 계획 모드에서 고른 기간과 배치. 시작일만 고른 동안은 [end]가 null이다.
+     * [dayKinds]는 [start]부터 하루씩의 종류(null = 미배분)이고, 목록 자체가 null이면 아직 기존 기록으로 채우지 않은 것이다.
+     * [brush]는 패널에서 고른 종류(달력 칸을 누르면 그 종류로 칠한다). null이면 칸을 눌러 기간을 늘리고 줄인다.
      * [originalStart]~[originalEnd]는 기존 기록으로 패널을 채운 기간(수정 대상)이다. 저장할 때 이 기간과 새 기간을
      * 합친 범위를 정리해, 줄여서 빠진 날의 기록도 지운다.
      */
     private data class PlanDraft(
         val start: LocalDate,
         val end: LocalDate?,
-        val parts: List<PlanPart>? = null,
+        val dayKinds: List<PlanKind?>? = null,
+        val brush: PlanKind? = null,
         val originalStart: LocalDate? = null,
         val originalEnd: LocalDate? = null,
         /** 보기 모드의 [수정]으로 들어왔는지(패널의 [이 출타 삭제] 표시용). */
@@ -164,7 +166,7 @@ class CalendarViewModel @Inject constructor(
             days = days,
             selectedDate = selected,
             autoAddOffDuty = profile?.autoAddOffDuty == true,
-            selectedTrip = trip?.let { TripSummary(it.start, it.end, it.totalDays, partsText(it.parts, lcr.leaveTypes)) },
+            selectedTrip = trip?.let { TripSummary(it.start, it.end, it.totalDays, partsText(it.segments, lcr.leaveTypes)) },
             plan = draft?.let { buildPlanState(it, src) },
         )
     }
@@ -174,7 +176,7 @@ class CalendarViewModel @Inject constructor(
      * 방식으로 계산하되, 고른 기간과 겹치는 기록(이 계획이 바꿀 기록)은 빼고 계산한다.
      */
     private fun buildPlanState(draft: PlanDraft, src: Sources): LeavePlanState {
-        val end = draft.end ?: return LeavePlanState(draft.start, null, emptyList(), emptyList(), emptyMap(), draft.editing)
+        val end = draft.end ?: return LeavePlanState(draft.start, null, emptyList(), emptyList(), emptyMap(), null, draft.editing)
         // 이 계획이 바꿀 기록(새 기간과 원래 기간에 겹치는 기록)은 잔여 계산에서 뺀다.
         val clearStart = draft.originalStart?.let { minOf(it, draft.start) } ?: draft.start
         val clearEnd = draft.originalEnd?.let { maxOf(it, end) } ?: end
@@ -195,35 +197,26 @@ class CalendarViewModel @Inject constructor(
                 add(PlanRow(PlanKind.Leave(type.id), type.name, remaining = summary.remainingAfterPlanned))
             }
         }
-        val parts = currentParts(draft.start, end, draft.parts, src)
-        val dayLabels = LeavePlanner.layout(draft.start, parts).flatMap { segment ->
-            val label = planKindDayLabel(segment.kind, src.lcr.leaveTypes)
-            generateSequence(segment.start) { it.plus(1, DateTimeUnit.DAY) }.takeWhile { it <= segment.end }.map { it to label }.toList()
+        val dayKinds = currentDayKinds(draft.start, end, draft.dayKinds, src)
+        val dayLabels = dayKinds.withIndex().mapNotNull { (i, kind) ->
+            kind?.let { draft.start.plus(i, DateTimeUnit.DAY) to planKindDayLabel(it, src.lcr.leaveTypes) }
         }.toMap()
-        return LeavePlanState(draft.start, end, rows, parts, dayLabels, draft.editing)
+        return LeavePlanState(draft.start, end, rows, dayKinds, dayLabels, draft.brush, draft.editing)
     }
 
-    /** 패널 행 순서(외박 → 휴가 종류 표시 순서). */
-    private fun planKinds(src: Sources): List<PlanKind> = listOf(PlanKind.Overnight) + src.lcr.leaveTypes.map { PlanKind.Leave(it.id) }
+    /** 지금의 날짜별 배치. 아직 채우지 않았으면([dayKinds]가 null) 기간의 기존 기록을 그대로 펼친다. */
+    private fun currentDayKinds(start: LocalDate, end: LocalDate, dayKinds: List<PlanKind?>?, src: Sources): List<PlanKind?> =
+        dayKinds ?: LeavePlanner.dayKindsOf(start, end, src.lcr.leaveUsages, src.op.overnightRecords)
 
-    /**
-     * 행 순서에 맞춘 지금의 배분. 아직 채우지 않았으면([parts]가 null) 기간의 기존 기록으로 채운다.
-     * 같은 종류가 떨어져 여러 번 나와도 행은 하나라 합친다.
-     */
-    private fun currentParts(start: LocalDate, end: LocalDate, parts: List<PlanPart>?, src: Sources): List<PlanPart> {
-        val source = parts ?: LeavePlanner.existingParts(start, end, src.lcr.leaveUsages, src.op.overnightRecords)
-        return planKinds(src).map { kind -> PlanPart(kind, source.filter { it.kind == kind }.sumOf { it.days }) }
-    }
-
-    /** [start]~[end]를 고르고 그 기간의 기존 기록으로 배분을 채운다. 기록이 있으면 그 기간을 수정 대상으로 기억한다. */
+    /** [start]~[end]를 고르고 그 기간의 기존 기록으로 배치를 채운다. 기록이 있으면 그 기간을 수정 대상으로 기억한다. */
     private fun startPlan(start: LocalDate, end: LocalDate, editing: Boolean): PlanDraft {
         val src = sources.value
-        val existing = src?.let { LeavePlanner.existingParts(start, end, it.lcr.leaveUsages, it.op.overnightRecords) }
-        val hasRecords = editing || !existing.isNullOrEmpty()
+        val existing = src?.let { LeavePlanner.dayKindsOf(start, end, it.lcr.leaveUsages, it.op.overnightRecords) }
+        val hasRecords = editing || existing?.any { it != null } == true
         return PlanDraft(
             start = start,
             end = end,
-            parts = src?.let { currentParts(start, end, existing, it) },
+            dayKinds = existing,
             originalStart = if (hasRecords) start else null,
             originalEnd = if (hasRecords) end else null,
             editing = editing,
@@ -345,12 +338,13 @@ class CalendarViewModel @Inject constructor(
     }
 
     // ---- 휴가 계획 ----
-    // 달력에서 시작일·종료일을 차례로 눌러 전체 기간을 고르고, 패널에서 외박·휴가 종류별 일수를 나눈다.
+    // 달력에서 시작일·종료일을 차례로 눌러 전체 기간을 고르고, 패널에서 종류를 골라 날짜마다 칠한다.
     // 한 출타는 맞닿은 휴가·외박 기록 여러 개로 저장된다([LeavePlanner]).
 
     /**
      * 휴가 계획 모드에서 날짜를 눌렀을 때. 첫 탭은 시작일, 둘째 탭은 종료일(앞이면 서로 바꿈)이다.
-     * 기간을 다 고른 뒤의 탭은 기간과 배분을 고친다([LeavePlanner.adjust]): 바깥을 누르면 늘어나고,
+     * 기간을 다 고른 뒤의 탭은 기간과 배치를 고친다([LeavePlanner.adjust]). 패널에서 종류를 골랐으면 그날을 그 종류로
+     * 칠하고(같은 종류면 비우거나 끝 날은 뺀다, 바깥은 그 종류로 늘린다), 고르지 않았으면 바깥을 누르면 늘어나고
      * 처음·끝 날을 누르면 하루씩, 안쪽을 누르면 가까운 끝이 그날까지 줄어든다. 기간이 비면 선택을 지운다.
      */
     fun tapPlanDate(date: LocalDate) {
@@ -364,9 +358,9 @@ class CalendarViewModel @Inject constructor(
             }
             else -> {
                 val src = sources.value ?: return
-                val parts = currentParts(current.start, end, current.parts, src)
-                LeavePlanner.adjust(current.start, end, parts, date)
-                    ?.let { current.copy(start = it.start, end = it.end, parts = it.parts) }
+                val dayKinds = currentDayKinds(current.start, end, current.dayKinds, src)
+                LeavePlanner.adjust(current.start, end, dayKinds, date, current.brush)
+                    ?.let { current.copy(start = it.start, end = it.end, dayKinds = it.dayKinds) }
             }
         }
     }
@@ -377,20 +371,20 @@ class CalendarViewModel @Inject constructor(
         yearMonth.value = start.year to start.monthNumber
     }
 
-    /** 패널에서 한 행의 일수를 바꾼다. */
-    fun setPlanDays(kind: PlanKind, days: Int) {
+    /** 패널에서 칠할 종류를 고른다. 이미 고른 종류를 다시 고르면(또는 null) 고르기를 푼다. */
+    fun selectPlanBrush(kind: PlanKind?) {
+        val current = planDraft.value ?: return
+        planDraft.value = current.copy(brush = if (kind == current.brush) null else kind)
+    }
+
+    /** 자동 배분: 비어 있는 날을 잔여에 맞춰 행 순서대로 채운다([LeavePlanner.autoFill]). */
+    fun autoFillPlan() {
         val current = planDraft.value ?: return
         val end = current.end ?: return
         val src = sources.value ?: return
-        val parts = currentParts(current.start, end, current.parts, src)
-        planDraft.value = current.copy(parts = parts.map { if (it.kind == kind) it.copy(days = days.coerceAtLeast(0)) else it })
-    }
-
-    /** 패널의 배분을 통째로 바꾼다(자동 배분). */
-    fun setPlanParts(parts: List<PlanPart>) {
-        val current = planDraft.value ?: return
-        if (current.end == null) return
-        planDraft.value = current.copy(parts = parts)
+        val rows = buildPlanState(current, src).rows
+        val dayKinds = currentDayKinds(current.start, end, current.dayKinds, src)
+        planDraft.value = current.copy(dayKinds = LeavePlanner.autoFill(dayKinds, rows.map { it.kind to (it.remaining ?: 0) }))
     }
 
     fun clearPlan() {
@@ -398,25 +392,30 @@ class CalendarViewModel @Inject constructor(
     }
 
     /**
-     * 고른 기간을 [parts]로 저장한다. 겹치는 기존 기록은 바꾸고, 기간 밖으로 삐져나온 부분은 잘라서 남긴다.
+     * 고른 기간을 지금 배치대로 저장한다(같은 종류가 이어진 날마다 기록 하나). 겹치는 기존 기록은 바꾸고, 기간 밖으로 삐져나온 부분은 잘라서 남긴다.
      * 기존 출타를 고친 경우엔 원래 기간까지 함께 정리해, 줄여서 빠진 날의 기록을 지운다.
+     *
+     * 배분하지 않은 날이 있으면 저장하지 않는다(패널의 [저장]이 꺼져 있다).
      *
      * @param onResult 안내 문구 (예: "09-22~09-28 휴가 계획 저장 (외박1 포상3 연가3)")
      */
-    fun savePlan(parts: List<PlanPart>, onResult: (String) -> Unit) {
+    fun savePlan(onResult: (String) -> Unit) {
         val draft = planDraft.value ?: return
         val end = draft.end ?: return
+        val src = sources.value ?: return
+        val dayKinds = currentDayKinds(draft.start, end, draft.dayKinds, src)
+        if (LeavePlanner.unassigned(dayKinds) > 0) return
         viewModelScope.launch {
             toggleMutex.withLock {
                 val changes = LeavePlanner.applyEdit(
-                    draft.originalStart, draft.originalEnd, draft.start, end, parts,
+                    draft.originalStart, draft.originalEnd, draft.start, end, dayKinds,
                     leaveRepository.observeAllUsages().first(),
                     overnightRepository.observeRecords().first(),
                 )
                 applyChanges(changes)
                 val types = leaveRepository.observeTypes().first()
                 planDraft.value = null
-                onResult("${rangeLabel(draft.start, end)} 휴가 계획 저장 (${partsText(parts, types)})")
+                onResult("${rangeLabel(draft.start, end)} 휴가 계획 저장 (${partsText(LeavePlanner.segmentsOf(draft.start, dayKinds), types)})")
             }
         }
     }
@@ -436,16 +435,10 @@ class CalendarViewModel @Inject constructor(
             toggleMutex.withLock {
                 val usages = leaveRepository.observeAllUsages().first()
                 val overnights = overnightRepository.observeRecords().first()
-                val parts = LeavePlanner.existingParts(start, end, usages, overnights)
-                applyChanges(
-                    LeavePlanner.apply(
-                        start, end, emptyList(),
-                        leaveRepository.observeAllUsages().first(),
-                        overnightRepository.observeRecords().first(),
-                    ),
-                )
+                val segments = LeavePlanner.segmentsOf(start, LeavePlanner.dayKindsOf(start, end, usages, overnights))
+                applyChanges(LeavePlanner.apply(start, end, List(LeavePlanner.dayCount(start, end)) { null }, usages, overnights))
                 val types = leaveRepository.observeTypes().first()
-                onResult("${rangeLabel(start, end)} 출타 삭제 (${partsText(parts, types)})")
+                onResult("${rangeLabel(start, end)} 출타 삭제 (${partsText(segments, types)})")
             }
         }
     }
@@ -462,9 +455,9 @@ class CalendarViewModel @Inject constructor(
 private fun rangeLabel(start: LocalDate, end: LocalDate): String =
     if (start == end) start.shortLabel() else "${start.shortLabel()}~${end.shortLabel()}"
 
-/** 종류별 일수 요약: "외박1 포상3 연가3". 일수 0인 종류는 뺀다. 휴가 이름은 장치 라벨처럼 두 글자로 줄인다. */
-internal fun partsText(parts: List<PlanPart>, types: List<LeaveType>): String =
-    parts.filter { it.days > 0 }.joinToString(" ") { "${planKindShortName(it.kind, types)}${it.days}" }
+/** 날짜순 구간별 일수 요약: "외박1 포상3 연가3"(포상-연가-포상이면 "포상2 연가1 포상1"). 휴가 이름은 장치 라벨처럼 두 글자로 줄인다. */
+internal fun partsText(segments: List<PlanSegment>, types: List<LeaveType>): String =
+    segments.joinToString(" ") { "${planKindShortName(it.kind, types)}${it.days}" }
 
 internal fun planKindShortName(kind: PlanKind, types: List<LeaveType>): String = when (kind) {
     PlanKind.Overnight -> OutingPeriodCalculator.OVERNIGHT_LABEL

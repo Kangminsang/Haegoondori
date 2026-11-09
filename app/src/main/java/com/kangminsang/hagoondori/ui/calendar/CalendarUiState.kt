@@ -4,7 +4,6 @@ import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.calc.PlanKind
-import com.kangminsang.hagoondori.core.calc.PlanPart
 import kotlinx.datetime.LocalDate
 
 /** 격자 위 날짜 하나의 표시 정보. */
@@ -60,15 +59,17 @@ data class PlanRow(val kind: PlanKind, val name: String, val remaining: Int?)
 
 /**
  * 휴가 계획 모드 상태. [end]가 null이면 시작일만 고른 상태다.
- * [parts]는 [rows]와 같은 순서의 행별 일수(처음엔 고른 기간의 기존 기록으로 채운다).
- * [dayLabels]는 계획대로라면 각 날짜에 들어갈 종류의 한 글자(달력 칸 표시용).
+ * [dayKinds]는 [start]부터 하루씩의 종류(null = 미배분, 처음엔 고른 기간의 기존 기록으로 채운다).
+ * [dayLabels]는 칠한 날짜마다 그 종류의 한 글자(달력 칸 표시용, 미배분 날은 없다).
+ * [brush]는 패널에서 고른 칠할 종류(없으면 null).
  * [editing]은 보기 모드의 [수정]으로 기존 출타를 고치는 중인지다.
  */
 data class LeavePlanState(
     val start: LocalDate,
     val end: LocalDate?,
     val rows: List<PlanRow>,
-    val parts: List<PlanPart>,
+    val dayKinds: List<PlanKind?>,
     val dayLabels: Map<LocalDate, String>,
+    val brush: PlanKind?,
     val editing: Boolean,
 )
