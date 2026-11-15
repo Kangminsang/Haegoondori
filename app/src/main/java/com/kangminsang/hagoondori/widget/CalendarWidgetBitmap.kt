@@ -39,9 +39,10 @@ class CalendarWidgetModel(
  * 달력 위젯 전체를 비트맵 한 장으로 그린다. 칸마다 뷰를 만들지 않는다. 이 비트맵 위에 얹는 투명 터치 영역
  * (res/layout/widget_calendar.xml)과 기하가 정확히 같아야 한다. 아래 상수는 그 XML의 dp 값과 일치해야 한다.
  *
- * - 헤더 [HEADER_DP]dp, 요일 줄 [WEEKDAY_DP]dp. 나머지 높이를 주 수로 균등 분할한다.
- * - 칸 폭 = 전체폭 / 7. 바깥 패딩과 좌우 안쪽 여백은 없다.
- * - ◀ 중심 x = [NAV_CENTER_DP]dp, ▶ 중심 x = 전체폭 - [NAV_CENTER_DP]dp.
+ * - 바깥 여백: 좌우 [PAD_H_DP]dp, 위 [PAD_TOP_DP]dp, 아래 [PAD_BOTTOM_DP]dp. 그 안쪽(내용 영역)에만 그린다.
+ * - 헤더 [HEADER_DP]dp, 요일 줄 [WEEKDAY_DP]dp. 내용 영역의 나머지 높이를 주 수로 균등 분할한다.
+ * - 칸 폭 = 내용 영역 폭 / 7.
+ * - ◀·▶ 터치 영역은 내용 영역 양 끝의 [NAV_DP]×[HEADER_DP]dp 정사각형이고, 버튼 그림은 그 가운데에 그린다.
  *
  * 글자는 [WidgetTextBitmap]과 같은 Galmuri 글꼴([WidgetFont])로 그린다. 바탕 테두리는 그리지 않는다(홈 앱이 모서리를 자른다).
  * 비트맵은 RGB_565(불투명 3색이라 충분)로 만든다.
@@ -127,21 +128,24 @@ class CalendarWidgetBitmap @Inject constructor(
     private fun drawAll(f: Frame, model: CalendarWidgetModel) {
         f.canvas.drawColor(f.colorOf(R.color.widget_paper))
         val weeks = WidgetMonthGrid.weekCount(model.year, model.month)
-        val gridTop = f.y(GRID_TOP_DP)
-        val rowHeight = (f.height - gridTop) / weeks
-        val cellWidth = f.width / WidgetMonthGrid.COLUMNS
+        val contentLeft = f.x(PAD_H_DP)
+        val contentRight = f.width - f.x(PAD_H_DP)
+        val gridTop = f.y(PAD_TOP_DP + GRID_TOP_DP)
+        val gridBottom = f.height - f.y(PAD_BOTTOM_DP)
+        val rowHeight = (gridBottom - gridTop) / weeks
+        val cellWidth = (contentRight - contentLeft) / WidgetMonthGrid.COLUMNS
 
         drawHeader(f, model)
         drawWeekdays(f)
 
         // 요일 줄 아래의 잉크 선. 요일 줄 안쪽 맨 아래에 그려 칸 격자 위치는 바꾸지 않는다.
-        f.canvas.drawRect(0f, f.y(GRID_TOP_DP - WEEKDAY_RULE_DP), f.width, gridTop, f.fillPaint(R.color.widget_ink))
+        f.canvas.drawRect(contentLeft, f.y(PAD_TOP_DP + GRID_TOP_DP - WEEKDAY_RULE_DP), contentRight, gridTop, f.fillPaint(R.color.widget_ink))
 
         // 주 사이의 회색 가로선. 마지막 주 아래에는 긋지 않는다.
         val rule = f.fillPaint(R.color.widget_gray)
         for (week in 1 until weeks) {
             val top = gridTop + week * rowHeight
-            f.canvas.drawRect(0f, top, f.width, top + max(1f, f.y(RULE_DP)), rule)
+            f.canvas.drawRect(contentLeft, top, contentRight, top + max(1f, f.y(RULE_DP)), rule)
         }
 
         for (day in 1..WidgetMonthGrid.daysInMonth(model.year, model.month)) {
@@ -152,22 +156,21 @@ class CalendarWidgetBitmap @Inject constructor(
                 f = f,
                 info = info,
                 today = model.today,
-                left = column * cellWidth,
+                left = contentLeft + column * cellWidth,
                 top = gridTop + row * rowHeight,
                 cellWidth = cellWidth,
                 rowHeight = rowHeight,
-                cellWidthDp = f.widthDp / WidgetMonthGrid.COLUMNS,
+                cellWidthDp = (f.widthDp - 2 * PAD_H_DP) / WidgetMonthGrid.COLUMNS,
             )
         }
     }
 
     private fun drawHeader(f: Frame, model: CalendarWidgetModel) {
-        val centerY = f.y(HEADER_DP / 2)
-        val ink = f.fillPaint(R.color.widget_ink)
-        val prevX = f.x(NAV_CENTER_DP)
-        val nextX = f.width - f.x(NAV_CENTER_DP)
-        f.canvas.drawPath(triangle(f, prevX, centerY, pointsLeft = true), ink)
-        f.canvas.drawPath(triangle(f, nextX, centerY, pointsLeft = false), ink)
+        val centerY = f.y(PAD_TOP_DP + HEADER_DP / 2)
+        val prevX = f.x(PAD_H_DP + NAV_DP / 2)
+        val nextX = f.width - f.x(PAD_H_DP + NAV_DP / 2)
+        drawNavButton(f, prevX, centerY, pointsLeft = true)
+        drawNavButton(f, nextX, centerY, pointsLeft = false)
 
         val titlePaint = f.textPaint(WidgetFont.TITLE, 18f, R.color.widget_ink)
         val title = "${model.year}년 ${model.month}월"
@@ -177,7 +180,7 @@ class CalendarWidgetBitmap @Inject constructor(
 
         val dDay = model.dDayText ?: return
         // D-day는 ▶ 바로 왼쪽에 쓴다. 제목과 겹치면 글자를 한 단계씩 줄이고, 그래도 안 들어가면 생략한다.
-        val right = nextX - f.x(TRIANGLE_HALF_WIDTH_DP + DDAY_GAP_DP)
+        val right = nextX - f.x(NAV_BOX_DP / 2 + DDAY_GAP_DP)
         for (size in DDAY_SIZES_SP) {
             val paint = f.textPaint(WidgetFont.TITLE, size, R.color.widget_ink)
             val left = right - paint.measureText(dDay)
@@ -188,11 +191,22 @@ class CalendarWidgetBitmap @Inject constructor(
         }
     }
 
+    /** ◀·▶ 버튼. 잉크 테두리의 정사각형 안에 삼각형을 그려 누를 수 있는 자리임을 보인다. */
+    private fun drawNavButton(f: Frame, centerX: Float, centerY: Float, pointsLeft: Boolean) {
+        val border = f.strokePaint(R.color.widget_ink, f.x(NAV_BORDER_DP))
+        val half = f.x(NAV_BOX_DP / 2) - border.strokeWidth / 2f
+        val halfY = f.y(NAV_BOX_DP / 2) - border.strokeWidth / 2f
+        f.canvas.drawRect(centerX - half, centerY - halfY, centerX + half, centerY + halfY, border)
+        f.canvas.drawPath(triangle(f, centerX, centerY, pointsLeft), f.fillPaint(R.color.widget_ink))
+    }
+
     private fun triangle(f: Frame, centerX: Float, centerY: Float, pointsLeft: Boolean): Path {
         val halfWidth = f.x(TRIANGLE_HALF_WIDTH_DP)
         val halfHeight = f.y(TRIANGLE_HALF_HEIGHT_DP)
-        val tipX = if (pointsLeft) centerX - halfWidth else centerX + halfWidth
-        val baseX = if (pointsLeft) centerX + halfWidth else centerX - halfWidth
+        // 삼각형의 무게중심이 버튼 가운데에 오도록 밑변 쪽으로 halfWidth/3만큼 민다.
+        val shift = (if (pointsLeft) 1 else -1) * halfWidth / 3f
+        val tipX = (if (pointsLeft) centerX - halfWidth else centerX + halfWidth) + shift
+        val baseX = (if (pointsLeft) centerX + halfWidth else centerX - halfWidth) + shift
         return Path().apply {
             moveTo(tipX, centerY)
             lineTo(baseX, centerY - halfHeight)
@@ -202,12 +216,13 @@ class CalendarWidgetBitmap @Inject constructor(
     }
 
     private fun drawWeekdays(f: Frame) {
-        val cellWidth = f.width / WidgetMonthGrid.COLUMNS
-        val centerY = f.y(HEADER_DP + WEEKDAY_DP / 2)
+        val contentLeft = f.x(PAD_H_DP)
+        val cellWidth = (f.width - 2 * contentLeft) / WidgetMonthGrid.COLUMNS
+        val centerY = f.y(PAD_TOP_DP + HEADER_DP + WEEKDAY_DP / 2)
         WEEKDAY_LABELS.forEachIndexed { index, label ->
             val colorRes = if (index == 0 || index == 6) R.color.widget_red else R.color.widget_ink
             val paint = f.textPaint(WidgetFont.BODY, 12f, colorRes)
-            val x = (index + 0.5f) * cellWidth - paint.measureText(label) / 2f
+            val x = contentLeft + (index + 0.5f) * cellWidth - paint.measureText(label) / 2f
             f.canvas.drawText(label, x, baselineAt(paint, centerY), paint)
         }
     }
@@ -350,14 +365,21 @@ class CalendarWidgetBitmap @Inject constructor(
 
     private companion object {
         // 기하(dp). res/layout/widget_calendar.xml의 높이·여백과 같아야 한다.
-        const val HEADER_DP = 40f
+        const val PAD_H_DP = 10f
+        const val PAD_TOP_DP = 6f
+        const val PAD_BOTTOM_DP = 10f
+        const val HEADER_DP = 48f
         const val WEEKDAY_DP = 22f
+        /** 내용 영역 위쪽([PAD_TOP_DP] 아래)에서 격자 첫 줄까지. */
         const val GRID_TOP_DP = HEADER_DP + WEEKDAY_DP
         const val WEEKDAY_RULE_DP = 1.5f
         const val RULE_DP = 1f
-        const val NAV_CENTER_DP = 28f
-        const val TRIANGLE_HALF_WIDTH_DP = 5f
-        const val TRIANGLE_HALF_HEIGHT_DP = 6f
+        /** ◀·▶ 터치 영역 폭. 높이는 [HEADER_DP]라 48×48dp 정사각형이다. */
+        const val NAV_DP = 48f
+        const val NAV_BOX_DP = 32f
+        const val NAV_BORDER_DP = 1.5f
+        const val TRIANGLE_HALF_WIDTH_DP = 6f
+        const val TRIANGLE_HALF_HEIGHT_DP = 7f
         const val DDAY_GAP_DP = 6f
         const val TITLE_DDAY_GAP_DP = 4f
         val DDAY_SIZES_SP = listOf(14f, 12f, 11f, 10f)

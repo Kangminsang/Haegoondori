@@ -28,7 +28,7 @@
         android:indeterminate="false"
         android:indeterminateOnly="false"
         android:max="100"
-        android:maxHeight="14dp"
+        android:maxHeight="32dp"
         android:minHeight="14dp"
         android:progressDrawable="@drawable/widget_gauge" />
 

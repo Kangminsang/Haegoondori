@@ -84,6 +84,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/gauge_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
@@ -99,7 +100,7 @@
             android:indeterminate="false"
             android:indeterminateOnly="false"
             android:max="100"
-            android:maxHeight="14dp"
+            android:maxHeight="32dp"
             android:minHeight="14dp"
             android:progressDrawable="@drawable/widget_gauge" />
 
