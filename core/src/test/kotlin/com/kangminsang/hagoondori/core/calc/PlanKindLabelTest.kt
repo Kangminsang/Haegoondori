@@ -3,7 +3,6 @@ package com.kangminsang.hagoondori.core.calc
 import com.kangminsang.hagoondori.core.model.LeaveType
 import com.kangminsang.hagoondori.core.model.LeaveUsage
 import com.kangminsang.hagoondori.core.model.OvernightRecord
-import com.kangminsang.hagoondori.core.calc.PlanKindLabel.LegendEntry
 import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -13,11 +12,9 @@ class PlanKindLabelTest {
     private val types = listOf(
         LeaveType("regular", "정기휴가", cap = null),
         LeaveType("reward", "포상휴가", cap = 17),
-        LeaveType("reward2", "포상휴가(특별)", cap = null),
     )
     private val regular = PlanKind.Leave("regular")
     private val reward = PlanKind.Leave("reward")
-    private val reward2 = PlanKind.Leave("reward2")
     private fun d(m: Int, day: Int) = LocalDate(2026, m, day)
 
     @Test
@@ -29,30 +26,9 @@ class PlanKindLabelTest {
     }
 
     @Test
-    fun `short and full names`() {
+    fun `short names`() {
         assertEquals("연가", PlanKindLabel.shortName(regular, types))
         assertEquals("외박", PlanKindLabel.shortName(PlanKind.Overnight, types))
-        assertEquals("정기휴가", PlanKindLabel.fullName(regular, types))
-        assertEquals("휴가", PlanKindLabel.fullName(PlanKind.Leave("deleted"), types))
-    }
-
-    @Test
-    fun `legend follows type order with overnight last and keeps shared letters`() {
-        val legend = PlanKindLabel.legend(listOf(PlanKind.Overnight, reward2, reward, reward, regular), types)
-        assertEquals(
-            listOf(
-                LegendEntry("연", "정기휴가"),
-                LegendEntry("포", "포상휴가"),
-                LegendEntry("포", "포상휴가(특별)"),
-                LegendEntry("외", "외박"),
-            ),
-            legend,
-        )
-    }
-
-    @Test
-    fun `legend of nothing is empty`() {
-        assertEquals(emptyList<LegendEntry>(), PlanKindLabel.legend(emptyList(), types))
     }
 
     @Test

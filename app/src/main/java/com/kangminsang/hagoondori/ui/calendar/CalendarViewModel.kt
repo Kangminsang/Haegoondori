@@ -188,7 +188,6 @@ class CalendarViewModel @Inject constructor(
             selectedTrip = trip?.let { TripSummary(it.start, it.end, it.totalDays, partsText(it.segments, lcr.leaveTypes)) },
             plan = plan,
             dayLabels = labeledKinds.mapValues { (_, kind) -> PlanKindLabel.dayLetter(kind, lcr.leaveTypes) },
-            labelLegend = PlanKindLabel.legend(monthKinds.values, lcr.leaveTypes),
         )
     }
 

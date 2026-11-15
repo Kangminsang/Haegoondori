@@ -152,7 +152,6 @@ fun CalendarScreen(
                 },
                 fillSelected = mode == CalendarMode.LEAVE_PLAN,
                 dayLabels = uiState.dayLabels,
-                labelLegend = uiState.labelLegend,
                 onDayClick = { date ->
                     when (mode) {
                         CalendarMode.VIEW -> viewModel.selectDate(date)

@@ -89,11 +89,11 @@ fun DayCell(
                 Box(Modifier.padding(start = 3.dp, top = 6.dp).size(5.dp).background(colors.onSurface))
             }
             if (kindLabel != null) {
-                // 숫자보다 한 단계 작은 굵은 적색 - 휴가·외박 막대와 같은 색이라 막대의 종류 표시로 읽힌다.
+                // 숫자보다 작은 보통 굵기 적색 - 휴가·외박 막대와 같은 색이라 막대의 종류 표시로 읽힌다.
                 Text(
                     kindLabel,
                     color = colors.error,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     modifier = Modifier.padding(start = 2.dp, top = 6.dp),
                 )

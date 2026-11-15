@@ -4,7 +4,6 @@ import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.calc.PlanKind
-import com.kangminsang.hagoondori.core.calc.PlanKindLabel
 import kotlinx.datetime.LocalDate
 
 /** 격자 위 날짜 하나의 표시 정보. */
@@ -59,8 +58,6 @@ data class CalendarUiState(
      * 고른 기간 안만 계획의 글자로 바뀐다.
      */
     val dayLabels: Map<LocalDate, String> = emptyMap(),
-    /** [dayLabels]에 나온 글자의 범례(글자 → 종류 이름). */
-    val labelLegend: List<PlanKindLabel.LegendEntry> = emptyList(),
 ) {
     val selectedDayInfo: CalendarDayInfo?
         get() = selectedDate?.let { selected -> days.firstOrNull { it.date == selected } }

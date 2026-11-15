@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.kangminsang.hagoondori.core.calc.PlanKindLabel
 import com.kangminsang.hagoondori.core.model.DutyType
 import com.kangminsang.hagoondori.ui.common.rememberToday
 import com.kangminsang.hagoondori.util.AppClock
@@ -52,8 +51,6 @@ fun MonthGrid(
     fillSelected: Boolean = false,
     /** 날짜별로 칸에 보일 출타 종류 한 글자(예: "외", "포", "연"). */
     dayLabels: Map<LocalDate, String> = emptyMap(),
-    /** [dayLabels]에 나온 글자의 범례. 비어 있으면 범례 아래 줄을 그리지 않는다. */
-    labelLegend: List<PlanKindLabel.LegendEntry> = emptyList(),
     onDayClick: (LocalDate) -> Unit,
     /** 격자를 오른쪽으로 밀면(이전 달 방향) 호출된다. */
     onSwipePrevious: () -> Unit = {},
@@ -130,37 +127,14 @@ fun MonthGrid(
             }
         }
 
-        MarkerLegend(labelLegend, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+        MarkerLegend(modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
     }
 }
 
 /** 장치 하단 범례(설계서 5.1절)와 같은 순서·같은 기호. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MarkerLegend(labelLegend: List<PlanKindLabel.LegendEntry>, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
-    Column(modifier = modifier) {
-        MarkerSymbols()
-        if (labelLegend.isNotEmpty()) {
-            // 이번 달 칸에 나온 출타 종류 글자만: "포 포상휴가 · 연 정기휴가 · 외 외박".
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                labelLegend.forEach { entry ->
-                    LegendItem(entry.name) {
-                        Text(entry.letter, color = colors.error, style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun MarkerSymbols(modifier: Modifier = Modifier) {
+private fun MarkerLegend(modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     FlowRow(
         modifier = modifier,
