@@ -164,13 +164,21 @@ class CalendarViewModel @Inject constructor(
         val plan = draft?.let { buildPlanState(it, src) }
         // 칸 글자: 계획 중인 기간 안은 계획(비운 날은 글자 없음), 밖은 저장된 기록의 종류.
         val planRange = plan?.end?.let { plan.start..it }
-        val monthKinds = days.filter { it.isCurrentMonth }.mapNotNull { day ->
+        val monthDays = days.filter { it.isCurrentMonth }
+        val monthKinds = monthDays.mapNotNull { day ->
             if (planRange != null && day.date in planRange) {
                 plan.dayKinds.getOrNull(plan.start.daysUntil(day.date))?.let { day.date to it }
             } else {
                 day.leaveKind?.let { day.date to it }
             }
         }.toMap()
+        // 같은 종류가 이어지면(외-외-외) 시작일에만 글자를 단다. 지난달부터 이어진 출타는 이번 달 1일에 단다.
+        // 휴가 계획 중인 기간 안은 날짜마다 칠한 종류를 봐야 하므로 매일 보인다.
+        val labeledKinds = monthKinds.filter { (date, kind) ->
+            (planRange != null && date in planRange) ||
+                date.dayOfMonth == 1 ||
+                monthKinds[date.plus(-1, DateTimeUnit.DAY)] != kind
+        }
         return CalendarUiState(
             year = year,
             month = month,
@@ -179,7 +187,7 @@ class CalendarViewModel @Inject constructor(
             autoAddOffDuty = profile?.autoAddOffDuty == true,
             selectedTrip = trip?.let { TripSummary(it.start, it.end, it.totalDays, partsText(it.segments, lcr.leaveTypes)) },
             plan = plan,
-            dayLabels = monthKinds.mapValues { (_, kind) -> PlanKindLabel.dayLetter(kind, lcr.leaveTypes) },
+            dayLabels = labeledKinds.mapValues { (_, kind) -> PlanKindLabel.dayLetter(kind, lcr.leaveTypes) },
             labelLegend = PlanKindLabel.legend(monthKinds.values, lcr.leaveTypes),
         )
     }

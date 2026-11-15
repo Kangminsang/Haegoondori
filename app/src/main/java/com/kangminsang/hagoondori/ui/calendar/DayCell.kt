@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,7 +23,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -42,7 +40,7 @@ import kotlinx.datetime.LocalDate
  * - 셀 위쪽 막대: 휴가·외박 = 적 실선, 전투휴무 = 적 점선, 외출 = 흑 점선(겹치면 이 순서로 하나만).
  * - 날짜 숫자: 주말·공휴일은 적, 지난 날은 흐리게, 오늘은 흑 반전 배지. 일정이 있으면 숫자 오른쪽에 흑 점.
  * - 근무 칩: 당 = 흑 채움, 비 = 흑 테두리, 츄 = 적 채움 (겹치면 모두 표시, 당 > 비 > 츄 순; 3개면 작게).
- * - 출타 종류 글자(포·연·외): 적색, 칸 아래쪽 가운데. 근무 칩이 있는 날은 칩 줄 오른쪽 끝.
+ * - 출타 종류 글자(포·연·외): 날짜 숫자(일정 점) 오른쪽에 작은 적색 글자.
  * - 선택한 날은 굵은 잉크 테두리(오늘 배지와 겹치지 않도록 반전을 쓰지 않는다).
  */
 @Composable
@@ -90,48 +88,26 @@ fun DayCell(
             if (day.events.isNotEmpty()) {
                 Box(Modifier.padding(start = 3.dp, top = 6.dp).size(5.dp).background(colors.onSurface))
             }
-        }
-        val duties = day.dutyAssignments.map { it.type }.distinct().sorted()
-        // 종류 글자와 근무 칩이 함께 있으면 글자를 칩 줄 오른쪽 끝에 둔다 - 칸 아래쪽에 따로 두면 0.85 비율의
-        // 좁은 칸(360dp 폭 기기에서 높이 약 55dp)에서 숫자·칩·글자 세 줄이 다 들어가지 않는다.
-        // 칩 자리가 좁아지므로 2개부터 작은 칩을 쓴다.
-        val labelInChipRow = kindLabel != null && duties.isNotEmpty()
-        val crowded = duties.size >= 3 || (labelInChipRow && duties.size >= 2)
-        val tiny = labelInChipRow && duties.size >= 3
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = if (tiny) 1.dp else if (crowded) 2.dp else 4.dp, top = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            duties.forEach {
-                when {
-                    tiny -> DutyChip(it, size = 11.dp, fontSize = 8.sp)
-                    crowded -> DutyChip(it, size = 13.dp, fontSize = 9.sp)
-                    else -> DutyChip(it)
-                }
-            }
-            if (labelInChipRow) {
-                Spacer(Modifier.weight(1f))
+            if (kindLabel != null) {
+                // 숫자보다 한 단계 작은 굵은 적색 - 휴가·외박 막대와 같은 색이라 막대의 종류 표시로 읽힌다.
                 Text(
-                    kindLabel!!,
+                    kindLabel,
                     color = colors.error,
-                    style = if (tiny) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(end = 2.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 2.dp, top = 6.dp),
                 )
             }
         }
-        if (kindLabel != null && !labelInChipRow) {
-            // 칸 아래쪽 가운데에 붙인다. 휴가·외박 막대와 같은 적색, 날짜 숫자와 같은 갈무리11 크기(굵게)로 써서
-            // 칸 안에서 숫자보다 튀지 않게 한다.
-            Spacer(Modifier.weight(1f))
-            Text(
-                kindLabel,
-                color = colors.error,
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            )
+        val duties = day.dutyAssignments.map { it.type }.distinct().sorted()
+        val crowded = duties.size >= 3
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = if (crowded) 2.dp else 4.dp, top = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            duties.forEach { DutyChip(it, size = if (crowded) 13.dp else 16.dp, fontSize = if (crowded) 9.sp else 11.sp) }
         }
     }
 }

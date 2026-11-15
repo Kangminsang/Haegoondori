@@ -55,7 +55,7 @@ data class CalendarUiState(
     /** 휴가 계획 모드에서 고른 기간과 배분 패널. 기간을 고르지 않았으면 null. */
     val plan: LeavePlanState? = null,
     /**
-     * 이번 달 칸마다 보이는 출타 종류 한 글자(포, 연, 외). 저장된 휴가·외박 기록에서 오고, 휴가 계획 중에는
+     * 이번 달 칸에 보이는 출타 종류 한 글자(포, 연, 외). 같은 종류가 이어지면 시작일에만 있다. 저장된 휴가·외박 기록에서 오고, 휴가 계획 중에는
      * 고른 기간 안만 계획의 글자로 바뀐다.
      */
     val dayLabels: Map<LocalDate, String> = emptyMap(),
