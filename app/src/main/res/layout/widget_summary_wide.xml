@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     요약 위젯 가로로 늘린 크기(4×1, 폭 250dp 이상). 왼쪽 제목, 오른쪽 위 오늘 근무 칩,
-    오른쪽 아래 다음 진급, 아래 전체 폭 게이지. 근무가 없으면 칩 줄 전체, 진급이 없으면 진급 줄을 숨긴다.
-    글자는 모두 렌더러가 그린 비트맵이다. 진급 줄은 칸 폭에 맞춰 줄어들도록 폭을 칸에 맞춘다.
+    오른쪽 아래 다음 진급, 아래 전체 폭 게이지, 그 아래 다음 출타·당직 줄. 근무가 없으면 칩 줄 전체, 진급이 없으면
+    진급 줄을 숨긴다. 출타·당직 줄은 위젯 높이가 넉넉할 때만(렌더러가 크기별로 고른다), 보일 내용이 있을 때만 보인다.
+    글자는 모두 렌더러가 그린 비트맵이다. 진급·출타 줄은 폭이 모자라면 줄어들도록 폭을 칸에 맞춘다.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -84,7 +85,6 @@
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/gauge_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
@@ -100,7 +100,7 @@
             android:indeterminate="false"
             android:indeterminateOnly="false"
             android:max="100"
-            android:maxHeight="32dp"
+            android:maxHeight="14dp"
             android:minHeight="14dp"
             android:progressDrawable="@drawable/widget_gauge" />
 
@@ -111,4 +111,13 @@
             android:layout_marginStart="8dp"
             android:adjustViewBounds="true" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/upcoming"
+        android:layout_width="match_parent"
+        android:layout_height="14.5dp"
+        android:layout_marginTop="4dp"
+        android:adjustViewBounds="true"
+        android:scaleType="fitStart"
+        android:visibility="gone" />
 </LinearLayout>

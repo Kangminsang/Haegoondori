@@ -182,4 +182,25 @@ class WidgetSummaryBuilderTest {
         val remaining = build(leaveTypes = listOf(regular, reward), leaveGrants = grants).leaveRemaining
         assertEquals(listOf(WidgetLeaveRemaining("정기", 27), WidgetLeaveRemaining("포상", 5)), remaining)
     }
+
+    @Test
+    fun `next duty is the earliest DUTY after today, skipping today and other duty types`() {
+        val duties = listOf(
+            DutyAssignment("a", today, DutyType.DUTY),
+            DutyAssignment("b", d(9, 20), DutyType.OFF_DUTY),
+            DutyAssignment("c", d(9, 30), DutyType.DUTY),
+            DutyAssignment("d", d(9, 25), DutyType.DUTY),
+            DutyAssignment("e", d(9, 10), DutyType.DUTY),
+            DutyAssignment("f", d(9, 21), DutyType.MESS),
+        )
+        val summary = build(duties = duties)
+        assertEquals(WidgetDuty(d(9, 25), 6), summary.nextDuty)
+        assertEquals(listOf(DutyType.DUTY), summary.todayDuties)
+    }
+
+    @Test
+    fun `no next duty when only today or past duties exist`() {
+        assertNull(build().nextDuty)
+        assertNull(build(duties = listOf(DutyAssignment("a", today, DutyType.DUTY), DutyAssignment("b", d(9, 1), DutyType.DUTY))).nextDuty)
+    }
 }
