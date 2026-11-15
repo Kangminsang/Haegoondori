@@ -4,6 +4,7 @@ import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
 import com.kangminsang.hagoondori.core.model.PassRecord
 import com.kangminsang.hagoondori.core.calc.PlanKind
+import com.kangminsang.hagoondori.core.calc.PlanKindLabel
 import kotlinx.datetime.LocalDate
 
 /** 격자 위 날짜 하나의 표시 정보. */
@@ -24,12 +25,22 @@ data class CalendarDayInfo(
     val startingLeaveNames: List<String> = emptyList(),
     /** 이 날 외박을 나가기 시작했는지(외박 기록의 시작일). 홈 화면 위젯의 칸 글자에 쓴다. */
     val overnightStarts: Boolean = false,
+    /**
+     * 이 날의 출타 종류(휴가·외박이 겹치면 휴가 계획 모드와 같이 먼저 시작한 기록, 같은 날 시작이면 휴가).
+     * 달력 칸 글자에 쓴다. 휴가·외박이 없으면 null.
+     */
+    val leaveKind: PlanKind? = null,
+    /** 이 날을 덮는 휴가 사용 기록들(상세의 "2/3일째" 표시용). */
+    val leaveRuns: List<LeaveRun> = emptyList(),
 ) {
     val hasLeave: Boolean get() = leaveNames.isNotEmpty()
 
     val hasAnyMarker: Boolean
         get() = hasLeave || hasCombatRest || hasOvernight || hasPass || events.isNotEmpty() || dutyAssignments.isNotEmpty()
 }
+
+/** 하루를 덮는 휴가 사용 기록 하나. [name]은 [CalendarDayInfo.leaveNames]와 같은 표기다. */
+data class LeaveRun(val name: String, val start: LocalDate, val end: LocalDate)
 
 /** ② 달력(스펙 5.1/5.2절) 화면 상태. */
 data class CalendarUiState(
@@ -43,6 +54,13 @@ data class CalendarUiState(
     val selectedTrip: TripSummary? = null,
     /** 휴가 계획 모드에서 고른 기간과 배분 패널. 기간을 고르지 않았으면 null. */
     val plan: LeavePlanState? = null,
+    /**
+     * 이번 달 칸마다 보이는 출타 종류 한 글자(포, 연, 외). 저장된 휴가·외박 기록에서 오고, 휴가 계획 중에는
+     * 고른 기간 안만 계획의 글자로 바뀐다.
+     */
+    val dayLabels: Map<LocalDate, String> = emptyMap(),
+    /** [dayLabels]에 나온 글자의 범례(글자 → 종류 이름). */
+    val labelLegend: List<PlanKindLabel.LegendEntry> = emptyList(),
 ) {
     val selectedDayInfo: CalendarDayInfo?
         get() = selectedDate?.let { selected -> days.firstOrNull { it.date == selected } }
@@ -60,7 +78,6 @@ data class PlanRow(val kind: PlanKind, val name: String, val remaining: Int?)
 /**
  * 휴가 계획 모드 상태. [end]가 null이면 시작일만 고른 상태다.
  * [dayKinds]는 [start]부터 하루씩의 종류(null = 미배분, 처음엔 고른 기간의 기존 기록으로 채운다).
- * [dayLabels]는 칠한 날짜마다 그 종류의 한 글자(달력 칸 표시용, 미배분 날은 없다).
  * [brush]는 패널에서 고른 칠할 종류(없으면 null).
  * [editing]은 보기 모드의 [수정]으로 기존 출타를 고치는 중인지다.
  */
@@ -69,7 +86,6 @@ data class LeavePlanState(
     val end: LocalDate?,
     val rows: List<PlanRow>,
     val dayKinds: List<PlanKind?>,
-    val dayLabels: Map<LocalDate, String>,
     val brush: PlanKind?,
     val editing: Boolean,
 )

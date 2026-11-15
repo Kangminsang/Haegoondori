@@ -42,6 +42,7 @@ import kotlinx.datetime.LocalDate
  * - 셀 위쪽 막대: 휴가·외박 = 적 실선, 전투휴무 = 적 점선, 외출 = 흑 점선(겹치면 이 순서로 하나만).
  * - 날짜 숫자: 주말·공휴일은 적, 지난 날은 흐리게, 오늘은 흑 반전 배지. 일정이 있으면 숫자 오른쪽에 흑 점.
  * - 근무 칩: 당 = 흑 채움, 비 = 흑 테두리, 츄 = 적 채움 (겹치면 모두 표시, 당 > 비 > 츄 순; 3개면 작게).
+ * - 출타 종류 글자(포·연·외): 적색, 칸 아래쪽 가운데. 근무 칩이 있는 날은 칩 줄 오른쪽 끝.
  * - 선택한 날은 굵은 잉크 테두리(오늘 배지와 겹치지 않도록 반전을 쓰지 않는다).
  */
 @Composable
@@ -49,8 +50,8 @@ fun DayCell(
     day: CalendarDayInfo,
     isSelected: Boolean,
     fillSelected: Boolean = false,
-    /** 휴가 계획 중 이 날에 들어갈 종류 한 글자. null이면 표시하지 않는다. */
-    planLabel: String? = null,
+    /** 이 날의 출타 종류 한 글자(저장된 휴가·외박, 휴가 계획 중에는 계획). null이면 표시하지 않는다. */
+    kindLabel: String? = null,
     isToday: Boolean,
     today: LocalDate,
     onClick: () -> Unit,
@@ -91,21 +92,41 @@ fun DayCell(
             }
         }
         val duties = day.dutyAssignments.map { it.type }.distinct().sorted()
-        val crowded = duties.size >= 3
+        // 종류 글자와 근무 칩이 함께 있으면 글자를 칩 줄 오른쪽 끝에 둔다 - 칸 아래쪽에 따로 두면 0.85 비율의
+        // 좁은 칸(360dp 폭 기기에서 높이 약 55dp)에서 숫자·칩·글자 세 줄이 다 들어가지 않는다.
+        // 칩 자리가 좁아지므로 2개부터 작은 칩을 쓴다.
+        val labelInChipRow = kindLabel != null && duties.isNotEmpty()
+        val crowded = duties.size >= 3 || (labelInChipRow && duties.size >= 2)
+        val tiny = labelInChipRow && duties.size >= 3
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = if (crowded) 2.dp else 4.dp, top = 3.dp),
+                .padding(start = if (tiny) 1.dp else if (crowded) 2.dp else 4.dp, top = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            duties.forEach { DutyChip(it, size = if (crowded) 13.dp else 16.dp, fontSize = if (crowded) 9.sp else 11.sp) }
+            duties.forEach {
+                when {
+                    tiny -> DutyChip(it, size = 11.dp, fontSize = 8.sp)
+                    crowded -> DutyChip(it, size = 13.dp, fontSize = 9.sp)
+                    else -> DutyChip(it)
+                }
+            }
+            if (labelInChipRow) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    kindLabel!!,
+                    color = colors.error,
+                    style = if (tiny) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(end = 2.dp),
+                )
+            }
         }
-        if (planLabel != null) {
-            // 근무 칩 유무와 상관없이 같은 줄에 오도록 칸 아래쪽에 붙인다. 휴가·외박 막대와 같은 적색,
-            // 날짜 숫자와 같은 갈무리11 크기(굵게)로 써서 칸 안에서 숫자보다 튀지 않게 한다.
+        if (kindLabel != null && !labelInChipRow) {
+            // 칸 아래쪽 가운데에 붙인다. 휴가·외박 막대와 같은 적색, 날짜 숫자와 같은 갈무리11 크기(굵게)로 써서
+            // 칸 안에서 숫자보다 튀지 않게 한다.
             Spacer(Modifier.weight(1f))
             Text(
-                planLabel,
+                kindLabel,
                 color = colors.error,
                 style = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,

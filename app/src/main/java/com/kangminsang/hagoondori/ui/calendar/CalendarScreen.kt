@@ -49,6 +49,7 @@ import com.kangminsang.hagoondori.core.validation.TitleValidator
 import com.kangminsang.hagoondori.ui.common.DateTextField
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.plus
 
 /** 달력 화면 모드: 보기, 근무·외출 탭 입력(F6), 휴가 계획(기간을 고르고 종류별로 나눔). */
@@ -150,7 +151,8 @@ fun CalendarScreen(
                     CalendarMode.LEAVE_PLAN -> uiState.plan?.let { planDates(it.start, it.end) }.orEmpty()
                 },
                 fillSelected = mode == CalendarMode.LEAVE_PLAN,
-                dayLabels = if (mode == CalendarMode.LEAVE_PLAN) uiState.plan?.dayLabels.orEmpty() else emptyMap(),
+                dayLabels = uiState.dayLabels,
+                labelLegend = uiState.labelLegend,
                 onDayClick = { date ->
                     when (mode) {
                         CalendarMode.VIEW -> viewModel.selectDate(date)
@@ -429,7 +431,7 @@ private fun SelectedDayDetail(
             )
         }
 
-        day.leaveNames.forEach { DetailLine("$it 사용일") }
+        day.leaveRuns.forEach { DetailLine(leaveRunText(it, day.date)) }
         if (day.hasCombatRest) DetailLine("전투휴무 사용일")
         if (day.hasOvernight) DetailLine("외박일")
         tripLine()
@@ -473,6 +475,15 @@ private fun SelectedDayDetail(
             }
         }
     }
+}
+
+/** 휴가 줄: "포상휴가 (09-23~09-25, 2/3일째)", 하루짜리는 "포상휴가 (09-23, 하루)". */
+private fun leaveRunText(run: LeaveRun, date: LocalDate): String {
+    fun LocalDate.dash() = "%02d-%02d".format(monthNumber, dayOfMonth)
+    if (run.start == run.end) return "${run.name} (${run.start.dash()}, 하루)"
+    val total = run.start.daysUntil(run.end) + 1
+    val nth = run.start.daysUntil(date) + 1
+    return "${run.name} (${run.start.dash()}~${run.end.dash()}, $nth/${total}일째)"
 }
 
 private fun passTypeLabel(type: PassType): String = if (type == PassType.WEEKDAY) "평일" else "휴일"
