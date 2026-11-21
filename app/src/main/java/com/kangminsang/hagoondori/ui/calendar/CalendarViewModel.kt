@@ -12,7 +12,7 @@ import com.kangminsang.hagoondori.core.calc.PlanSegment
 import com.kangminsang.hagoondori.core.model.LeaveGrant
 import com.kangminsang.hagoondori.core.model.OvernightForfeiture
 import com.kangminsang.hagoondori.core.model.UserProfile
-import com.kangminsang.hagoondori.core.payload.LeaveDeviceLabel
+import com.kangminsang.hagoondori.core.calc.PlanKindLabel
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
@@ -37,6 +37,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.plus
 import com.kangminsang.hagoondori.util.AppClock
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -160,6 +161,24 @@ class CalendarViewModel @Inject constructor(
             ),
         )
         val trip = selected?.let { LeavePlanner.tripAround(it, lcr.leaveUsages, op.overnightRecords) }
+        val plan = draft?.let { buildPlanState(it, src) }
+        // 칸 글자: 계획 중인 기간 안은 계획(비운 날은 글자 없음), 밖은 저장된 기록의 종류.
+        val planRange = plan?.end?.let { plan.start..it }
+        val monthDays = days.filter { it.isCurrentMonth }
+        val monthKinds = monthDays.mapNotNull { day ->
+            if (planRange != null && day.date in planRange) {
+                plan.dayKinds.getOrNull(plan.start.daysUntil(day.date))?.let { day.date to it }
+            } else {
+                day.leaveKind?.let { day.date to it }
+            }
+        }.toMap()
+        // 같은 종류가 이어지면(외-외-외) 시작일에만 글자를 단다. 지난달부터 이어진 출타는 이번 달 1일에 단다.
+        // 휴가 계획 중인 기간 안은 날짜마다 칠한 종류를 봐야 하므로 매일 보인다.
+        val labeledKinds = monthKinds.filter { (date, kind) ->
+            (planRange != null && date in planRange) ||
+                date.dayOfMonth == 1 ||
+                monthKinds[date.plus(-1, DateTimeUnit.DAY)] != kind
+        }
         return CalendarUiState(
             year = year,
             month = month,
@@ -167,7 +186,8 @@ class CalendarViewModel @Inject constructor(
             selectedDate = selected,
             autoAddOffDuty = profile?.autoAddOffDuty == true,
             selectedTrip = trip?.let { TripSummary(it.start, it.end, it.totalDays, partsText(it.segments, lcr.leaveTypes)) },
-            plan = draft?.let { buildPlanState(it, src) },
+            plan = plan,
+            dayLabels = labeledKinds.mapValues { (_, kind) -> PlanKindLabel.dayLetter(kind, lcr.leaveTypes) },
         )
     }
 
@@ -176,7 +196,7 @@ class CalendarViewModel @Inject constructor(
      * 방식으로 계산하되, 고른 기간과 겹치는 기록(이 계획이 바꿀 기록)은 빼고 계산한다.
      */
     private fun buildPlanState(draft: PlanDraft, src: Sources): LeavePlanState {
-        val end = draft.end ?: return LeavePlanState(draft.start, null, emptyList(), emptyList(), emptyMap(), null, draft.editing)
+        val end = draft.end ?: return LeavePlanState(draft.start, null, emptyList(), emptyList(), null, draft.editing)
         // 이 계획이 바꿀 기록(새 기간과 원래 기간에 겹치는 기록)은 잔여 계산에서 뺀다.
         val clearStart = draft.originalStart?.let { minOf(it, draft.start) } ?: draft.start
         val clearEnd = draft.originalEnd?.let { maxOf(it, end) } ?: end
@@ -198,10 +218,7 @@ class CalendarViewModel @Inject constructor(
             }
         }
         val dayKinds = currentDayKinds(draft.start, end, draft.dayKinds, src)
-        val dayLabels = dayKinds.withIndex().mapNotNull { (i, kind) ->
-            kind?.let { draft.start.plus(i, DateTimeUnit.DAY) to planKindDayLabel(it, src.lcr.leaveTypes) }
-        }.toMap()
-        return LeavePlanState(draft.start, end, rows, dayKinds, dayLabels, draft.brush, draft.editing)
+        return LeavePlanState(draft.start, end, rows, dayKinds, draft.brush, draft.editing)
     }
 
     /** 지금의 날짜별 배치. 아직 채우지 않았으면([dayKinds]가 null) 기간의 기존 기록을 그대로 펼친다. */
@@ -457,18 +474,7 @@ private fun rangeLabel(start: LocalDate, end: LocalDate): String =
 
 /** 날짜순 구간별 일수 요약: "외박1 포상3 연가3"(포상-연가-포상이면 "포상2 연가1 포상1"). 휴가 이름은 장치 라벨처럼 두 글자로 줄인다. */
 internal fun partsText(segments: List<PlanSegment>, types: List<LeaveType>): String =
-    segments.joinToString(" ") { "${planKindShortName(it.kind, types)}${it.days}" }
-
-internal fun planKindShortName(kind: PlanKind, types: List<LeaveType>): String = when (kind) {
-    PlanKind.Overnight -> OutingPeriodCalculator.OVERNIGHT_LABEL
-    is PlanKind.Leave -> types.firstOrNull { it.id == kind.typeId }?.name?.let(LeaveDeviceLabel::forTypeName) ?: "휴가"
-}
-
-/** 계획 중 달력 칸에 보이는 한 글자: 외박은 "외", 휴가는 장치 라벨의 첫 글자(포상 → "포", 정기휴가 → "연"). */
-internal fun planKindDayLabel(kind: PlanKind, types: List<LeaveType>): String = when (kind) {
-    PlanKind.Overnight -> "외"
-    is PlanKind.Leave -> planKindShortName(kind, types).take(1)
-}
+    segments.joinToString(" ") { "${PlanKindLabel.shortName(it.kind, types)}${it.days}" }
 
 /** 안내 문구용 날짜 표기: MM-dd (월·일 모두 두 자리). */
 private fun LocalDate.shortLabel(): String = "%02d-%02d".format(monthNumber, dayOfMonth)

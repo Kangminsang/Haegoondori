@@ -21,6 +21,8 @@ import kotlinx.datetime.LocalDate
  *
  * @property todayDuties 오늘 근무 종류. 중복을 뺐고 [DutyType] 선언 순서(당직 → 비번 → 츄라이)다.
  * @property leaveRemaining 휴가 종류별 잔여. 입력된 휴가 종류 순서를 그대로 유지한다.
+ * @property nextDuty 내일 이후 가장 가까운 당직([DutyType.DUTY]). 오늘 당직은 [todayDuties] 칩이 보여 주므로
+ *   여기에는 넣지 않는다(같은 말을 두 번 하지 않도록). 없으면 null.
  */
 data class WidgetSummary(
     val dischargeDDay: Int,
@@ -30,7 +32,11 @@ data class WidgetSummary(
     val nextOuting: WidgetOuting?,
     val nextPass: WidgetPass?,
     val leaveRemaining: List<WidgetLeaveRemaining>,
+    val nextDuty: WidgetDuty? = null,
 )
+
+/** 다가오는 당직일. [dDay]는 오늘 기준 일수다. */
+data class WidgetDuty(val date: LocalDate, val dDay: Int)
 
 /** 다음 진급. [dDay]는 오늘 기준 진급일까지의 일수다. */
 data class WidgetPromotion(val label: String, val date: LocalDate, val dDay: Int)
@@ -96,6 +102,9 @@ object WidgetSummaryBuilder {
 
         val todayDuties = duties.filter { it.date == today }.map { it.type }.distinct().sorted()
 
+        val nextDuty = duties.filter { it.type == DutyType.DUTY && it.date > today }.minOfOrNull { it.date }
+            ?.let { WidgetDuty(it, DDayCalculator.dDay(today, it)) }
+
         val leaveRemaining = leaveTypes.map { type ->
             WidgetLeaveRemaining(
                 shortName = WidgetText.shortLeaveName(type.name),
@@ -115,6 +124,7 @@ object WidgetSummaryBuilder {
             nextOuting = nextOuting,
             nextPass = nextPass,
             leaveRemaining = leaveRemaining,
+            nextDuty = nextDuty,
         )
     }
 }

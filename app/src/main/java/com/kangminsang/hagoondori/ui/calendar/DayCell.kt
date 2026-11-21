@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,7 +23,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -42,6 +40,7 @@ import kotlinx.datetime.LocalDate
  * - 셀 위쪽 막대: 휴가·외박 = 적 실선, 전투휴무 = 적 점선, 외출 = 흑 점선(겹치면 이 순서로 하나만).
  * - 날짜 숫자: 주말·공휴일은 적, 지난 날은 흐리게, 오늘은 흑 반전 배지. 일정이 있으면 숫자 오른쪽에 흑 점.
  * - 근무 칩: 당 = 흑 채움, 비 = 흑 테두리, 츄 = 적 채움 (겹치면 모두 표시, 당 > 비 > 츄 순; 3개면 작게).
+ * - 출타 종류 글자(포·연·외): 날짜 숫자(일정 점) 오른쪽에 작은 적색 글자.
  * - 선택한 날은 굵은 잉크 테두리(오늘 배지와 겹치지 않도록 반전을 쓰지 않는다).
  */
 @Composable
@@ -49,8 +48,8 @@ fun DayCell(
     day: CalendarDayInfo,
     isSelected: Boolean,
     fillSelected: Boolean = false,
-    /** 휴가 계획 중 이 날에 들어갈 종류 한 글자. null이면 표시하지 않는다. */
-    planLabel: String? = null,
+    /** 이 날의 출타 종류 한 글자(저장된 휴가·외박, 휴가 계획 중에는 계획). null이면 표시하지 않는다. */
+    kindLabel: String? = null,
     isToday: Boolean,
     today: LocalDate,
     onClick: () -> Unit,
@@ -89,6 +88,16 @@ fun DayCell(
             if (day.events.isNotEmpty()) {
                 Box(Modifier.padding(start = 3.dp, top = 6.dp).size(5.dp).background(colors.onSurface))
             }
+            if (kindLabel != null) {
+                // 숫자보다 작은 보통 굵기 적색 - 휴가·외박 막대와 같은 색이라 막대의 종류 표시로 읽힌다.
+                Text(
+                    kindLabel,
+                    color = colors.error,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 2.dp, top = 6.dp),
+                )
+            }
         }
         val duties = day.dutyAssignments.map { it.type }.distinct().sorted()
         val crowded = duties.size >= 3
@@ -99,18 +108,6 @@ fun DayCell(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             duties.forEach { DutyChip(it, size = if (crowded) 13.dp else 16.dp, fontSize = if (crowded) 9.sp else 11.sp) }
-        }
-        if (planLabel != null) {
-            // 근무 칩 유무와 상관없이 같은 줄에 오도록 칸 아래쪽에 붙인다. 휴가·외박 막대와 같은 적색,
-            // 날짜 숫자와 같은 갈무리11 크기(굵게)로 써서 칸 안에서 숫자보다 튀지 않게 한다.
-            Spacer(Modifier.weight(1f))
-            Text(
-                planLabel,
-                color = colors.error,
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            )
         }
     }
 }

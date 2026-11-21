@@ -2,9 +2,10 @@
 <!--
     달력 위젯. 달력 그림은 CalendarWidgetBitmap이 그린 비트맵 한 장(calendar_image)이고, 그 위에 투명 터치 영역을 얹는다.
     두 쪽의 기하가 정확히 같아야 한다. 아래 dp 값은 CalendarWidgetBitmap의 상수와 일치해야 한다.
-      - 헤더 40dp: ◀ 중심 x=28dp, ▶ 중심 x=전체폭-28dp (각 56dp 터치 영역, 월 제목은 가운데)
+      - 바깥 여백: 좌우 10dp, 위 6dp, 아래 10dp (터치 영역 LinearLayout의 padding)
+      - 헤더 48dp: ◀·▶는 내용 영역 양 끝의 48×48dp 터치 영역(그림은 가운데 32dp 상자), 월 제목은 가운데
       - 요일 줄 22dp: 빈 공간(비트맵이 요일 글자를 그린다)
-      - 주 행 6개: 남은 높이를 보이는 주 수로 균등 분할(쓰지 않는 행은 GONE). 칸 폭 = 전체폭/7, 바깥 패딩 없음
+      - 주 행 6개: 남은 높이를 보이는 주 수로 균등 분할(쓰지 않는 행은 GONE). 칸 폭 = 내용 영역 폭/7
     RemoteViews가 허용하는 뷰(FrameLayout, LinearLayout, ImageView)만 쓴다.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -23,16 +24,20 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:paddingStart="10dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="10dp">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="48dp"
             android:orientation="horizontal">
 
             <FrameLayout
                 android:id="@+id/nav_prev"
-                android:layout_width="56dp"
+                android:layout_width="48dp"
                 android:layout_height="match_parent" />
 
             <FrameLayout
@@ -43,7 +48,7 @@
 
             <FrameLayout
                 android:id="@+id/nav_next"
-                android:layout_width="56dp"
+                android:layout_width="48dp"
                 android:layout_height="match_parent" />
         </LinearLayout>
 

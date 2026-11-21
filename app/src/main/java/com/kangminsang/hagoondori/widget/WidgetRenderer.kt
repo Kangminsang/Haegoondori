@@ -58,7 +58,8 @@ class WidgetRenderer @Inject constructor(
             RemoteViews(
                 mapOf(
                     SIZE_SMALL to small(summary),
-                    SIZE_WIDE to wide(summary),
+                    SIZE_WIDE to wide(summary, showUpcoming = false),
+                    SIZE_WIDE_TALL to wide(summary, showUpcoming = true),
                     SIZE_LARGE to large(summary),
                 ),
             )
@@ -74,7 +75,11 @@ class WidgetRenderer @Inject constructor(
             setOnClickPendingIntent(R.id.widget_root, openApp)
         }
 
-    private fun wide(summary: WidgetSummary): RemoteViews =
+    /**
+     * [showUpcoming]이면 게이지 아래에 다음 출타·당직 줄을 넣는다(높이가 [SIZE_WIDE_TALL] 이상일 때). 오늘 당직은
+     * 근무 칩이 이미 보여 주므로 줄에는 내일 이후 당직만 온다([WidgetSummary.nextDuty]).
+     */
+    private fun wide(summary: WidgetSummary, showUpcoming: Boolean): RemoteViews =
         RemoteViews(packageName, R.layout.widget_summary_wide).apply {
             bindTitle(summary)
             bindDuties(summary)
@@ -82,6 +87,9 @@ class WidgetRenderer @Inject constructor(
             val promotion = summary.nextPromotion
             setViewVisibility(R.id.promotion, if (promotion == null) View.GONE else View.VISIBLE)
             if (promotion != null) setText(R.id.promotion, WidgetText.promotionLine(promotion), WidgetFont.BODY, SMALL_SP)
+            val upcoming = if (showUpcoming) WidgetText.upcomingLine(summary.nextOuting, summary.nextDuty) else null
+            setViewVisibility(R.id.upcoming, if (upcoming == null) View.GONE else View.VISIBLE)
+            if (upcoming != null) setText(R.id.upcoming, upcoming, WidgetFont.BODY, SMALL_SP)
             setOnClickPendingIntent(R.id.widget_root, openApp)
         }
 
@@ -179,6 +187,8 @@ class WidgetRenderer @Inject constructor(
         // RemoteViews 크기 Map의 키. 실제 위젯 크기가 키 이상인 후보 중 가장 큰 레이아웃을 시스템이 고른다.
         val SIZE_SMALL = SizeF(110f, 40f)
         val SIZE_WIDE = SizeF(250f, 40f)
+        // 출타·당직 줄까지 넣은 내용 높이(제목 26.5 + 4 + 게이지 14 + 4 + 14.5 = 63dp)와 위아래 padding 12dp를 더한 값.
+        val SIZE_WIDE_TALL = SizeF(250f, 76f)
         val SIZE_LARGE = SizeF(250f, 110f)
     }
 }

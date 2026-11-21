@@ -1,6 +1,7 @@
 package com.kangminsang.hagoondori.ui.calendar
 
 import com.kangminsang.hagoondori.core.calc.HolidayJudge
+import com.kangminsang.hagoondori.core.calc.LeavePlanner
 import com.kangminsang.hagoondori.core.model.CombatRestUsage
 import com.kangminsang.hagoondori.core.model.DutyAssignment
 import com.kangminsang.hagoondori.core.model.Event
@@ -31,18 +32,21 @@ object CalendarDayBuilder {
 
     fun build(year: Int, month: Int, source: CalendarSource): List<CalendarDayInfo> {
         val typeNames = source.leaveTypes.associate { it.id to it.name }
-        return CalendarGridBuilder.buildGrid(year, month).map { date ->
+        val grid = CalendarGridBuilder.buildGrid(year, month)
+        // 칸 글자용 날짜별 종류. 휴가 계획 모드가 기존 기록을 펼칠 때와 같은 함수를 써서 두 모드의 글자를 맞춘다.
+        val kinds = if (grid.isEmpty()) emptyList()
+        else LeavePlanner.dayKindsOf(grid.first(), grid.last(), source.leaveUsages, source.overnightRecords)
+        fun usageName(usage: LeaveUsage): String {
+            val name = typeNames[usage.leaveTypeId] ?: "휴가"
+            return usage.label?.takeIf { it.isNotBlank() }?.let { "$name ($it)" } ?: name
+        }
+        return grid.mapIndexed { index, date ->
+            val covering = source.leaveUsages.filter { date in it.startDate..it.endDate }
             CalendarDayInfo(
                 date = date,
                 isCurrentMonth = date.year == year && date.monthNumber == month,
                 isHoliday = HolidayJudge.isHoliday(date, source.holidays),
-                leaveNames = source.leaveUsages
-                    .filter { date in it.startDate..it.endDate }
-                    .map { usage ->
-                        val name = typeNames[usage.leaveTypeId] ?: "휴가"
-                        usage.label?.takeIf { it.isNotBlank() }?.let { "$name ($it)" } ?: name
-                    }
-                    .distinct(),
+                leaveNames = covering.map(::usageName).distinct(),
                 hasCombatRest = source.combatRestUsages.any { date in it.startDate..it.endDate },
                 hasOvernight = source.overnightRecords.any { date in it.date..it.endDate },
                 hasPass = source.passRecords.any { it.date == date },
@@ -54,6 +58,8 @@ object CalendarDayBuilder {
                     .map { WidgetText.shortLeaveName(typeNames[it.leaveTypeId] ?: "휴가") }
                     .distinct(),
                 overnightStarts = source.overnightRecords.any { it.date == date },
+                leaveKind = kinds.getOrNull(index),
+                leaveRuns = covering.sortedBy { it.startDate }.map { LeaveRun(usageName(it), it.startDate, it.endDate) },
             )
         }
     }
