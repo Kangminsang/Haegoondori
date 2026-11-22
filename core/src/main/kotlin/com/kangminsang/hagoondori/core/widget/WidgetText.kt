@@ -33,6 +33,21 @@ object WidgetText {
             "${outing.label} 진행 중"
         }
 
+    /**
+     * 가로(4×1) 위젯 게이지 아래 줄: 다음 출타와 다음 당직까지 남은 날. 있는 것만 ` · `로 잇고, 둘 다 없으면 null.
+     * 예: `출타 12-02 (D-17) · 당직 11-28 (D-13)`, `출타 중 (3일째) · 당직 11-28 (D-13)`.
+     * 출타는 [outingLine]과 같이 시작일이 오늘이거나 지났으면 진행 중으로 본다(시작일이 1일째).
+     */
+    fun upcomingLine(outing: WidgetOuting?, duty: WidgetDuty?): String? {
+        val parts = listOfNotNull(
+            outing?.let {
+                if (it.dDay > 0) "출타 ${monthDay(it.start)} (${formatDDay(it.dDay)})" else "출타 중 (${1 - it.dDay}일째)"
+            },
+            duty?.let { if (it.dDay <= 0) "당직 오늘" else "당직 ${monthDay(it.date)} (${formatDDay(it.dDay)})" },
+        )
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    }
+
     /** 다음 외출일. 예: `11-08 (D-7)`. */
     fun passLine(pass: WidgetPass): String = "${monthDay(pass.date)} (${formatDDay(pass.dDay)})"
 

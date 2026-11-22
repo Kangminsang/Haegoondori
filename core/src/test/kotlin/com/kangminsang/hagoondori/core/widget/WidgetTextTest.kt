@@ -71,4 +71,23 @@ class WidgetTextTest {
         assertEquals(0, WidgetText.progressPercent(Double.NaN))
         assertEquals("62%", WidgetText.progressText(62.0))
     }
+
+    @Test
+    fun `출타·당직 줄은 있는 것만 잇고 둘 다 없으면 null`() {
+        val outing = WidgetOuting("외박·포상", LocalDate(2026, 12, 2), 17)
+        val duty = WidgetDuty(LocalDate(2026, 11, 28), 13)
+        assertNull(WidgetText.upcomingLine(null, null))
+        assertEquals("출타 12-02 (D-17)", WidgetText.upcomingLine(outing, null))
+        assertEquals("당직 11-28 (D-13)", WidgetText.upcomingLine(null, duty))
+        assertEquals("출타 12-02 (D-17) · 당직 11-28 (D-13)", WidgetText.upcomingLine(outing, duty))
+    }
+
+    @Test
+    fun `출타가 시작일이거나 진행 중이면 며칠째인지 쓰고 당직이 오늘이면 오늘이라 쓴다`() {
+        val startsToday = WidgetOuting("외박", LocalDate(2026, 11, 15), 0)
+        val ongoing = WidgetOuting("외박·포상", LocalDate(2026, 11, 13), -2)
+        val dutyToday = WidgetDuty(LocalDate(2026, 11, 15), 0)
+        assertEquals("출타 중 (1일째)", WidgetText.upcomingLine(startsToday, null))
+        assertEquals("출타 중 (3일째) · 당직 오늘", WidgetText.upcomingLine(ongoing, dutyToday))
+    }
 }
